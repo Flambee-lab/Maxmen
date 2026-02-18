@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-bitter: "Bitter", Georgia, serif;
+  /* Colores del diseño */
+  --bg-dark-blue: #1e2c51;
+  --bg-medium-blue: #374f7a;
+  --bg-light-blue: #4c76be;
+  --border-light-blue: #a3bff9;
+  --text-white: #ffffff;
+  --glow-yellow: #ffd700;
+  --glow-blue: #4c76be;
+}
+
+body {
+  background-color: var(--bg-dark-blue);
+  color: var(--text-white);
+  overflow-x: hidden;
+  font-family: var(--font-bitter), serif;
+}
+
+/* Radial background lighting */
+.radial-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(76, 118, 190, 0.15) 0%,
+    rgba(30, 44, 81, 0.8) 50%,
+    rgba(30, 44, 81, 1) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glow effect para lámparas */
+.lamp-glow {
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8))
+    drop-shadow(0 0 12px rgba(255, 215, 0, 0.6))
+    drop-shadow(0 0 16px rgba(255, 215, 0, 0.4));
+}
+
+/* Glow effect para botón Reveal Answers */
+.reveal-glow {
+  box-shadow: 0 0 20px rgba(76, 118, 190, 0.5),
+    0 0 40px rgba(76, 118, 190, 0.3), 0 0 60px rgba(76, 118, 190, 0.1);
+}
+
+.reveal-glow:hover {
+  box-shadow: 0 0 25px rgba(76, 118, 190, 0.7),
+    0 0 50px rgba(76, 118, 190, 0.5), 0 0 75px rgba(76, 118, 190, 0.3);
+}
+
+/* Glassmorphism para botones */
+.glass-button {
+  background: rgba(30, 44, 81, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.glass-button:hover {
+  background: rgba(30, 44, 81, 0.85);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Card highlight effect */
+.card-highlight {
+  box-shadow: 0 0 20px rgba(163, 191, 249, 0.6),
+    0 0 40px rgba(163, 191, 249, 0.4), 0 0 60px rgba(163, 191, 249, 0.2);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Dashed border para chips */
+.chip-dashed-border {
+  border: 2px dashed var(--border-light-blue);
+}
+
+/* Arrow glow */
+.arrow-glow {
+  filter: drop-shadow(0 0 4px rgba(76, 118, 190, 0.6));
+}
+
+/* SVG Arrow para drag */
+.drag-arrow {
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Specs selectors: sin outline/ring de foco (solo borde #101665 en selected) */
+.specs-option-btn:focus,
+.specs-option-btn:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
