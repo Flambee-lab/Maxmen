@@ -50,6 +50,7 @@ export function GameCard({
           }
         }}
         data-card-id={cardId}
+        data-target-id={cardId}
         className="absolute"
         style={{
           left: "50%",

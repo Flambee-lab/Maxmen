@@ -27,9 +27,11 @@ interface GameScreenProps {
 }
 
 export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragStateRef = useRef<DragState | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const [gameState, setGameState] = useState<GameState>({
     round: 1,
@@ -124,14 +126,37 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
         ...prev,
         draggingNameId: nameId,
       }));
-
       const handlePointerMove = (moveEvent: PointerEvent) => {
         if (!dragStateRef.current) return;
 
+        // Clamp la punta de la flecha al área del canvas (cards + slots)
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        let clampedX = moveEvent.clientX;
+        let clampedY = moveEvent.clientY;
+
+        if (canvasRect) {
+          clampedX = Math.min(Math.max(moveEvent.clientX, canvasRect.left), canvasRect.right);
+          clampedY = Math.min(Math.max(moveEvent.clientY, canvasRect.top), canvasRect.bottom);
+        }
+
+        // Detectar card bajo la punta de la flecha para highlight en drag
+        let hoveredCardId: string | null = null;
+        const elementAtPoint = document.elementFromPoint(clampedX, clampedY);
+        if (elementAtPoint) {
+          const targetElement = elementAtPoint.closest('[data-target-id]') as HTMLElement | null;
+          if (targetElement) {
+            const targetId = targetElement.getAttribute("data-target-id");
+            if (targetId && targetId.startsWith("card-")) {
+              hoveredCardId = targetId;
+            }
+          }
+        }
+        setActiveCardId(hoveredCardId);
+
         dragStateRef.current = {
           ...dragStateRef.current,
-          pointerX: moveEvent.clientX,
-          pointerY: moveEvent.clientY,
+          pointerX: clampedX,
+          pointerY: clampedY,
         };
 
         setDragState({
@@ -140,24 +165,43 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       };
 
       const handlePointerUp = (upEvent: PointerEvent) => {
-        const dropX = upEvent.clientX;
-        const dropY = upEvent.clientY;
+        // Usar las coordenadas clampadas del último movimiento
+        const dropX = dragStateRef.current?.pointerX ?? upEvent.clientX;
+        const dropY = dragStateRef.current?.pointerY ?? upEvent.clientY;
 
+        // Detectar si cayó sobre una card o connect slot usando elementFromPoint
+        const elementAtDrop = document.elementFromPoint(dropX, dropY);
         let droppedCardId: string | null = null;
-        for (const [cardId, slotElement] of connectSlotsRef.current.entries()) {
-          const rect = slotElement.getBoundingClientRect();
-          if (
-            dropX >= rect.left &&
-            dropX <= rect.right &&
-            dropY >= rect.top &&
-            dropY <= rect.bottom
-          ) {
-            droppedCardId = cardId;
-            break;
+
+        if (elementAtDrop) {
+          // Buscar data-target-id hacia arriba en el DOM
+          const targetElement = elementAtDrop.closest('[data-target-id]') as HTMLElement;
+          if (targetElement) {
+            const targetId = targetElement.getAttribute('data-target-id');
+            if (targetId && targetId.startsWith('card-')) {
+              droppedCardId = targetId;
+            }
+          }
+        }
+
+        // Fallback: verificar connect slots por bounding rect (por si elementFromPoint falla)
+        if (!droppedCardId) {
+          for (const [cardId, slotElement] of connectSlotsRef.current.entries()) {
+            const rect = slotElement.getBoundingClientRect();
+            if (
+              dropX >= rect.left &&
+              dropX <= rect.right &&
+              dropY >= rect.top &&
+              dropY <= rect.bottom
+            ) {
+              droppedCardId = cardId;
+              break;
+            }
           }
         }
 
         if (droppedCardId) {
+          // Registrar selección (sin UI de feedback aún)
           setGameState((prev) => {
             const existingIndex = prev.connections.findIndex(
               (c) => c.nameId === nameId
@@ -169,23 +213,11 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
               newConnections.push({ nameId, cardId: droppedCardId });
             }
 
-            const chip = prev.chips.find((c) => c.id === nameId);
-            const isCorrect = chip?.correctCardId === droppedCardId;
-
+            // Por ahora solo guardamos la conexión, sin marcar correcto/incorrecto todavía
             return {
               ...prev,
               connections: newConnections,
-              chips: prev.chips.map((c) =>
-                c.id === nameId ? { ...c, isMatched: isCorrect } : c
-              ),
-              cards: prev.cards.map((c) =>
-                c.id === droppedCardId ? { ...c, isMatched: isCorrect } : c
-              ),
               draggingNameId: null,
-              showSuccess: newConnections.every((conn) => {
-                const c = prev.chips.find((ch) => ch.id === conn.nameId);
-                return c?.correctCardId === conn.cardId;
-              }),
             };
           });
         } else {
@@ -195,6 +227,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
           }));
         }
 
+        setActiveCardId(null);
         dragStateRef.current = null;
         setDragState(null);
         target.releasePointerCapture(upEvent.pointerId);
@@ -245,10 +278,10 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
 
         <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
           <GameInstruction />
-          <div style={{ marginTop: "58px" }}>
+          <div ref={canvasRef} style={{ marginTop: "58px" }}>
             <CardStage
               cards={gameState.cards}
-              highlightedCardId={null}
+              highlightedCardId={activeCardId}
               onCardHover={() => {}}
               onCardDrop={handleCardDrop}
               connectSlotRef={registerConnectSlot}

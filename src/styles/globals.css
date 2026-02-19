@@ -99,3 +99,9 @@ body {
   outline: none;
   outline-offset: 0;
 }
+
+/* CoachScreen: ocultar cards del layer base (solo se ven en spotlight window) */
+.coach-screen .coach-cards-container {
+  opacity: 0;
+  visibility: hidden;
+}

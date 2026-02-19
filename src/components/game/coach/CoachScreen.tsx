@@ -1,53 +1,77 @@
 "use client";
 
-import { Background } from "@/components/game/Background";
 import { CoachGamePreview } from "@/components/game/coach/CoachGamePreview";
+import { CardStage } from "@/components/game/CardStage";
 import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { mockCards } from "@/mocks/gameMocks";
 
-/** Posición del bloque cards+slots (solo esto se muestra; el resto no se renderiza). */
-const CARDS_TOP = 156;
+const COACH_CARDS = mockCards.slice(0, 3);
+
+/** Spotlight: solo cards + connect slots. Preview Coach = 3 cards → ancho 3×208+2×20 = 664. */
+const SPOTLIGHT_TOP = 156;
+const SPOTLIGHT_WIDTH = 664;
+const SPOTLIGHT_HEIGHT = 232;
+const SPOTLIGHT_RADIUS = 16;
+const SPOTLIGHT_HALF = SPOTLIGHT_WIDTH / 2;
 
 interface CoachScreenProps {
   onContinue: () => void;
 }
 
 /**
- * Coach: solo cards + header coach + popup Recognize.
- * No se renderizan: título del juego, lámparas, timer, chips, Reveal, pause/sound.
- * Orden: (1) Fondo (2) Overlay 80% (3) Cards+slots (4) Header (5) Popup.
+ * CoachScreen: juego completo detrás de overlay 80%, spotlight revela solo cards+slots.
+ * Orden: (1) GamePlay completo (2) Overlay 80% (3) SpotlightWindow (4) Coach header + popup.
  */
 export function CoachScreen({ onContinue }: CoachScreenProps) {
   return (
-    <div className="relative w-full min-h-screen">
-      {/* 1) Fondo (misma estética que el juego) */}
-      <div className="absolute inset-0 pointer-events-none">
-        <Background />
+    <div className="coach-screen relative w-full min-h-screen">
+      {/* Layer 1: GamePlay completo (bloqueado, sin interacción) - z-index: 1 */}
+      <div
+        className="pointer-events-none select-none absolute inset-0"
+        style={{ zIndex: 1 }}
+      >
+        <CoachGamePreview skipBackground hideTitle />
       </div>
 
-      {/* 2) Overlay negro 80% — no tapa las cards porque van encima */}
+      {/* Layer 2: Overlay negro 80% — tapa TODO el juego - z-index: 2 */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background: "rgba(0, 0, 0, 0.80)",
+          zIndex: 2,
         }}
       />
 
-      {/* 3) Solo cards + connect slots (encima del overlay) */}
+      {/* Layer 3: Spotlight window — revela SOLO cards+slots encima del overlay - z-index: 3 */}
       <div
-        className="absolute left-1/2 pointer-events-none"
+        className="absolute overflow-hidden pointer-events-none"
         style={{
-          top: `${CARDS_TOP}px`,
-          transform: "translateX(-50%)",
+          top: `${SPOTLIGHT_TOP}px`,
+          left: "50%",
+          marginLeft: `-${SPOTLIGHT_HALF}px`,
+          width: `${SPOTLIGHT_WIDTH}px`,
+          maxWidth: "92vw",
+          height: `${SPOTLIGHT_HEIGHT}px`,
+          borderRadius: `${SPOTLIGHT_RADIUS}px`,
+          zIndex: 3,
         }}
       >
-        <CoachGamePreview />
+        {/* Solo CardStage dentro del spotlight (no HUD, no chips, no título) */}
+        {/* CardStage ya tiene su propio padding px-4, así que no agregamos padding extra */}
+        <CardStage
+          cards={COACH_CARDS}
+          highlightedCardId={null}
+          onCardHover={() => {}}
+          onCardDrop={() => {}}
+        />
       </div>
 
-      {/* 4) Coach header */}
+      {/* Layer 4: Coach header - z-index: 4 */}
       <div
         className="absolute left-0 right-0 top-0 pt-12 text-center pointer-events-none"
         style={{
           fontFamily: "var(--font-bitter), serif",
+          zIndex: 4,
         }}
       >
         <h1
@@ -73,7 +97,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
         </p>
       </div>
 
-      {/* 5) Coach popup Recognize (encima de todo) */}
+      {/* Layer 4: Coach popup Recognize (encima de todo) - z-index: 4 */}
       <div
         className="absolute pointer-events-auto rounded-xl px-6 py-5"
         style={{
@@ -84,6 +108,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
           border: "2px solid rgba(255, 255, 255, 0.25)",
           boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
           fontFamily: "var(--font-bitter), serif",
+          zIndex: 4,
         }}
       >
         <p

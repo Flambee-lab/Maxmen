@@ -21,11 +21,21 @@ export function PhotoCardComponent({
   connectSlotRef,
 }: PhotoCardProps) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center" data-target-id={card.id}>
       <div
-        className={isHighlighted ? "card-highlight transition-all duration-300" : ""}
         onMouseEnter={onHover}
         onMouseLeave={onHoverLeave}
+        data-target-id={card.id}
+        style={
+          isHighlighted
+            ? {
+                filter: "drop-shadow(0px 0px 15px rgba(0, 0, 0, 0.40))",
+                outline: "1px solid #FFFFFF",
+                outlineOffset: "-1px",
+                borderRadius: "16px",
+              }
+            : undefined
+        }
       >
         <GameCard
           imageSrc={card.imageUrl}
