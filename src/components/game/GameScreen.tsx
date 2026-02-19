@@ -49,6 +49,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const [cardStatus, setCardStatus] = useState<Record<string, "correct" | "incorrect" | "idle">>({});
   const [resolvedByCard, setResolvedByCard] = useState<Record<string, string>>({}); // cardId -> chipName
   const [cardFeedback, setCardFeedback] = useState<Record<string, "idle" | "incorrect" | "correct">>({}); // cardId -> feedback temporal
+  const [isPaused, setIsPaused] = useState(false);
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragStateRef = useRef<DragState | null>(null);
@@ -75,6 +76,8 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const [dragState, setDragState] = useState<DragState | null>(null);
 
   const handleTogglePause = () => {
+    setIsPaused((prev) => !prev);
+    // Mantener gameState.isPaused sincronizado por si otros sistemas lo usan
     setGameState((prev) => ({
       ...prev,
       isPaused: !prev.isPaused,
@@ -429,74 +432,97 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
   const isGameComplete = gameState.chips.length === 0;
 
+  // Cerrar pausa con tecla Escape
+  useEffect(() => {
+    if (!isPaused) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPaused(false);
+        setGameState((prev) => ({
+          ...prev,
+          isPaused: false,
+        }));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPaused]);
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
 
-      <div className="relative z-10 min-h-screen">
-        <TopHUD
-          lives={gameState.lives}
-          round={gameState.round}
-          isMuted={gameState.isMuted}
-          onPauseClick={handleTogglePause}
-          onMuteToggle={handleMuteToggle}
-        />
+      {/* Contenedor del juego: se bloquea mientras está en pausa */}
+      <div style={isPaused ? { pointerEvents: "none" } : undefined}>
+        <div className="relative z-10 min-h-screen">
+          <TopHUD
+            lives={gameState.lives}
+            round={gameState.round}
+            isMuted={gameState.isMuted}
+            onPauseClick={handleTogglePause}
+            onMuteToggle={handleMuteToggle}
+          />
 
-        <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
-          <GameInstruction />
-          <div ref={canvasRef} style={{ marginTop: "58px" }}>
-            <CardStage
-              cards={gameState.cards}
-              highlightedCardId={activeCardId}
-              cardStatus={cardStatus}
-              resolvedByCard={resolvedByCard}
-              cardFeedback={cardFeedback}
-              onCardHover={() => {}}
-              onCardDrop={handleCardDrop}
-              connectSlotRef={registerConnectSlot}
-            />
-          </div>
+          <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
+            <GameInstruction />
+            <div ref={canvasRef} style={{ marginTop: "58px" }}>
+              <CardStage
+                cards={gameState.cards}
+                highlightedCardId={activeCardId}
+                cardStatus={cardStatus}
+                resolvedByCard={resolvedByCard}
+                cardFeedback={cardFeedback}
+                onCardHover={() => {}}
+                onCardDrop={handleCardDrop}
+                connectSlotRef={registerConnectSlot}
+              />
+            </div>
 
-          <div style={{ marginTop: "78px" }}>
-            <ChipRow
-              chips={gameState.chips}
-              hoveredNameId={gameState.hoveredNameId}
-              draggingNameId={gameState.draggingNameId}
-              onChipHover={handleChipHover}
-              onArrowPointerDown={handleArrowPointerDown}
-              chipRef={registerChipRef}
-            />
-          </div>
-        </main>
+            <div style={{ marginTop: "78px" }}>
+              <ChipRow
+                chips={gameState.chips}
+                hoveredNameId={gameState.hoveredNameId}
+                draggingNameId={gameState.draggingNameId}
+                onChipHover={handleChipHover}
+                onArrowPointerDown={handleArrowPointerDown}
+                chipRef={registerChipRef}
+              />
+            </div>
+          </main>
+        </div>
+
+        {/* Botón Reveal / Continue centrado en la parte inferior del layout */}
+        <div
+          className="absolute left-1/2"
+          style={{ bottom: 0, transform: "translateX(-50%)" }}
+        >
+          {!isGameComplete && (
+            <RevealAnswersButton onClick={handleRevealAnswers} />
+          )}
+          {isGameComplete && (
+            <GamePrimaryButton onClick={() => console.log("continue")}>
+              Continue
+            </GamePrimaryButton>
+          )}
+        </div>
+
+        {/* Overlay de flecha durante drag */}
+        {dragState && (
+          <DragArrowOverlay
+            originX={dragState.originX}
+            originY={dragState.originY}
+            tipX={dragState.pointerX}
+            tipY={dragState.pointerY}
+          />
+        )}
       </div>
 
-      {/* Botón Reveal Answers centrado en la parte inferior del layout */}
-      <div
-        className="absolute left-1/2"
-        style={{ bottom: "32px", transform: "translateX(-50%)" }}
-      >
-        {!isGameComplete && (
-          <RevealAnswersButton onClick={handleRevealAnswers} />
-        )}
-        {isGameComplete && (
-          <GamePrimaryButton onClick={() => console.log("continue")}>
-            Continue
-          </GamePrimaryButton>
-        )}
-      </div>
-
-      {/* Overlay de flecha durante drag */}
-      {dragState && (
-        <DragArrowOverlay
-          originX={dragState.originX}
-          originY={dragState.originY}
-          tipX={dragState.pointerX}
-          tipY={dragState.pointerY}
-        />
-      )}
-
-      {/* Menú de pausa */}
-      {gameState.isPaused && (
+      {/* Menú de pausa (overlay con blur + modal) */}
+      {isPaused && (
         <PauseMenu onResume={handleTogglePause} onQuit={() => {}} />
       )}
     </div>
