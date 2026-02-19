@@ -13,6 +13,7 @@ import { PauseMenu } from "./PauseMenu";
 import { SuccessScreen } from "./SuccessScreen";
 import { DragArrowOverlay } from "./DragArrowOverlay";
 import { GamePrimaryButton } from "./GamePrimaryButton";
+import Image from "next/image";
 
 interface DragState {
   nameId: string;
@@ -21,6 +22,8 @@ interface DragState {
   pointerX: number;
   pointerY: number;
 }
+
+type GameMode = "play" | "reveal";
 
 interface GameScreenProps {
   /** Si true, no renderiza Background (lo provee GameContainer) */
@@ -50,6 +53,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const [resolvedByCard, setResolvedByCard] = useState<Record<string, string>>({}); // cardId -> chipName
   const [cardFeedback, setCardFeedback] = useState<Record<string, "idle" | "incorrect" | "correct">>({}); // cardId -> feedback temporal
   const [isPaused, setIsPaused] = useState(false);
+  const [mode, setMode] = useState<GameMode>("play");
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragStateRef = useRef<DragState | null>(null);
@@ -413,10 +417,44 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   }, []);
 
   const handleRevealAnswers = () => {
+    setMode("reveal");
+  };
+
+  const handleRestart = () => {
+    // Resetear todos los estados del juego
+    setResolvedByCard({});
+    setCardFeedback({});
+    setCardStatus({});
+    setActiveCardId(null);
+    setDragState(null);
+    dragStateRef.current = null;
+    
+    // Limpiar todos los timers
+    Object.values(resetTimersRef.current).forEach((timer) => {
+      if (timer) clearTimeout(timer);
+    });
+    Object.values(correctFeedbackTimersRef.current).forEach((timer) => {
+      if (timer) clearTimeout(timer);
+    });
+    resetTimersRef.current = {};
+    correctFeedbackTimersRef.current = {};
+
+    // Restaurar chips disponibles
     setGameState((prev) => ({
       ...prev,
-      showSuccess: true,
+      chips: mockChips,
+      connections: [],
+      draggingNameId: null,
+      hoveredNameId: null,
     }));
+
+    // Volver a modo play
+    setMode("play");
+  };
+
+  const handleCloseGame = () => {
+    // Volver a modo play sin resetear
+    setMode("play");
   };
 
   if (gameState.showSuccess) {
@@ -431,6 +469,18 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
 
   // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
   const isGameComplete = gameState.chips.length === 0;
+
+  useEffect(() => {
+    console.log("mode", mode);
+  }, [mode]);
+
+  // En reveal mode, crear resolvedByCard automático usando CORRECT_MAPPING
+  const revealResolvedByCard = mode === "reveal" 
+    ? Object.entries(CORRECT_MAPPING).reduce((acc, [chipName, cardId]) => {
+        acc[cardId] = chipName;
+        return acc;
+      }, {} as Record<string, string>)
+    : resolvedByCard;
 
   // Cerrar pausa con tecla Escape
   useEffect(() => {
@@ -456,25 +506,40 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
 
-      {/* Contenedor del juego: se bloquea mientras está en pausa */}
-      <div style={isPaused ? { pointerEvents: "none" } : undefined}>
+      {/* Contenedor del juego: se bloquea mientras está en pausa o en reveal mode */}
+      <div style={isPaused || mode === "reveal" ? { pointerEvents: "none" } : undefined}>
         <div className="relative z-10 min-h-screen">
           <TopHUD
             lives={gameState.lives}
             round={gameState.round}
             isMuted={gameState.isMuted}
+            mode={mode}
             onPauseClick={handleTogglePause}
             onMuteToggle={handleMuteToggle}
           />
 
           <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
-            <GameInstruction />
+            {mode === "reveal" ? (
+              <p
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 700,
+                  fontSize: "32px",
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                }}
+              >
+                Right Answers are ...
+              </p>
+            ) : (
+              <GameInstruction />
+            )}
             <div ref={canvasRef} style={{ marginTop: "58px" }}>
               <CardStage
                 cards={gameState.cards}
-                highlightedCardId={activeCardId}
+                highlightedCardId={mode === "reveal" ? null : activeCardId}
                 cardStatus={cardStatus}
-                resolvedByCard={resolvedByCard}
+                resolvedByCard={revealResolvedByCard}
                 cardFeedback={cardFeedback}
                 onCardHover={() => {}}
                 onCardDrop={handleCardDrop}
@@ -482,36 +547,94 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
               />
             </div>
 
-            <div style={{ marginTop: "78px" }}>
-              <ChipRow
-                chips={gameState.chips}
-                hoveredNameId={gameState.hoveredNameId}
-                draggingNameId={gameState.draggingNameId}
-                onChipHover={handleChipHover}
-                onArrowPointerDown={handleArrowPointerDown}
-                chipRef={registerChipRef}
-              />
-            </div>
+            {/* Ocultar ChipRow en reveal mode */}
+            {mode !== "reveal" && (
+              <div style={{ marginTop: "78px" }}>
+                <ChipRow
+                  chips={gameState.chips}
+                  hoveredNameId={gameState.hoveredNameId}
+                  draggingNameId={gameState.draggingNameId}
+                  onChipHover={handleChipHover}
+                  onArrowPointerDown={handleArrowPointerDown}
+                  chipRef={registerChipRef}
+                />
+              </div>
+            )}
           </main>
         </div>
 
-        {/* Botón Reveal / Continue centrado en la parte inferior del layout */}
-        <div
-          className="absolute left-1/2"
-          style={{ bottom: 0, transform: "translateX(-50%)" }}
-        >
-          {!isGameComplete && (
-            <RevealAnswersButton onClick={handleRevealAnswers} />
-          )}
-          {isGameComplete && (
-            <GamePrimaryButton onClick={() => console.log("continue")}>
-              Continue
-            </GamePrimaryButton>
-          )}
-        </div>
+        {/* Botones del bottom según el modo */}
+        {mode === "reveal" ? (
+          /* En reveal mode: Close game (izq) + Restart (der) - fuera del bloqueo de pointer-events */
+          <div
+            className="absolute left-1/2 flex items-center gap-4"
+            style={{
+              bottom: 0,
+              transform: "translateX(-50%)",
+              pointerEvents: "auto",
+              zIndex: 20,
+            }}
+          >
+            {/* Botón secundario: Close game (izquierda) */}
+            <button
+              type="button"
+              onClick={handleCloseGame}
+              className="rounded-[32px]"
+              style={{
+                width: "320px",
+                height: "68px",
+                fontFamily: "var(--font-bitter), serif",
+                fontWeight: 700,
+                fontSize: "24px",
+                color: "#FFFFFF",
+                display: "inline-flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 32px",
+                borderTop: "2px solid rgba(255, 255, 255, 0.20)",
+                borderRight: "2px solid rgba(255, 255, 255, 0.20)",
+                borderLeft: "2px solid rgba(255, 255, 255, 0.20)",
+                borderBottom: "none",
+                background:
+                  "linear-gradient(0deg, rgba(255, 255, 255, 0.00) 24.06%, rgba(255, 255, 255, 0.10) 100%)",
+                backgroundBlendMode: "screen",
+                boxSizing: "border-box",
+                cursor: "pointer",
+              }}
+            >
+              Close game
+            </button>
 
-        {/* Overlay de flecha durante drag */}
-        {dragState && (
+            {/* Botón primario: Restart (derecha) */}
+            <GamePrimaryButton onClick={handleRestart}>
+              Restart
+            </GamePrimaryButton>
+          </div>
+        ) : (
+          /* En play mode: Reveal / Continue */
+          <div
+            className="absolute left-1/2"
+            style={{
+              bottom: 0,
+              transform: "translateX(-50%)",
+              pointerEvents: "auto",
+              zIndex: 20,
+            }}
+          >
+            {!isGameComplete && (
+              <RevealAnswersButton onClick={handleRevealAnswers} />
+            )}
+            {isGameComplete && (
+              <GamePrimaryButton onClick={() => console.log("continue")}>
+                Continue
+              </GamePrimaryButton>
+            )}
+          </div>
+        )}
+
+        {/* Overlay de flecha durante drag (solo en play mode) */}
+        {mode === "play" && dragState && (
           <DragArrowOverlay
             originX={dragState.originX}
             originY={dragState.originY}

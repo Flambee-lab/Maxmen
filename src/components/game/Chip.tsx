@@ -111,6 +111,10 @@ export function Chip({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            // Simulamos un stroke interno con box-shadow inset para no cambiar el tamaño
+            ...(isHovered
+              ? { boxShadow: "inset 0 0 0 2px #FFFFFF" }
+              : {}),
           }}
         >
           <span
