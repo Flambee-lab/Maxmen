@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { GameState } from "@/types/game";
 import { mockCards, mockChips } from "@/mocks/gameMocks";
 import { Background } from "./Background";
@@ -12,6 +12,7 @@ import { RevealAnswersButton } from "./RevealAnswersButton";
 import { PauseMenu } from "./PauseMenu";
 import { SuccessScreen } from "./SuccessScreen";
 import { DragArrowOverlay } from "./DragArrowOverlay";
+import { GamePrimaryButton } from "./GamePrimaryButton";
 
 interface DragState {
   nameId: string;
@@ -26,12 +27,34 @@ interface GameScreenProps {
   skipBackground?: boolean;
 }
 
+/** Mapping correcto: chipName -> cardId */
+const CORRECT_MAPPING: Record<string, string> = {
+  // Orden físico de izquierda a derecha:
+  // card-1 (primera izquierda), card-2 (segunda izquierda),
+  // card-3 (segunda derecha), card-4 (extremo derecho)
+  Tom: "card-1",
+  Ian: "card-2",
+  Catherine: "card-3",
+  // Tanto "Justin" (nombre real del chip en mocks) como "Justine" (label esperado)
+  // deben ser correctos solo para la card más a la derecha.
+  Justin: "card-4",
+  Justine: "card-4",
+};
+
+const INCORRECT_RESET_DELAY = 5000; // 5 segundos
+const CORRECT_FEEDBACK_DELAY = 5000; // 5 segundos
+
 export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [cardStatus, setCardStatus] = useState<Record<string, "correct" | "incorrect" | "idle">>({});
+  const [resolvedByCard, setResolvedByCard] = useState<Record<string, string>>({}); // cardId -> chipName
+  const [cardFeedback, setCardFeedback] = useState<Record<string, "idle" | "incorrect" | "correct">>({}); // cardId -> feedback temporal
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const dragStateRef = useRef<DragState | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const resetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const correctFeedbackTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   const [gameState, setGameState] = useState<GameState>({
     round: 1,
@@ -147,7 +170,10 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
           if (targetElement) {
             const targetId = targetElement.getAttribute("data-target-id");
             if (targetId && targetId.startsWith("card-")) {
-              hoveredCardId = targetId;
+              // Solo highlight si la card no está resuelta
+              if (!resolvedByCard[targetId]) {
+                hoveredCardId = targetId;
+              }
             }
           }
         }
@@ -201,7 +227,29 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
         }
 
         if (droppedCardId) {
-          // Registrar selección (sin UI de feedback aún)
+          // Si la card ya está resuelta, ignorar el drop
+          if (resolvedByCard[droppedCardId]) {
+            setGameState((prev) => ({
+              ...prev,
+              draggingNameId: null,
+            }));
+            setActiveCardId(null);
+            dragStateRef.current = null;
+            setDragState(null);
+            target.releasePointerCapture(upEvent.pointerId);
+            document.removeEventListener("pointermove", handlePointerMove);
+            document.removeEventListener("pointerup", handlePointerUp);
+            return;
+          }
+
+          // Obtener el chip que se está conectando
+          const chip = gameState.chips.find((c) => c.id === nameId);
+          const chipName = chip?.name;
+
+          // Evaluar si el match es correcto comparando contra el mapping
+          const isCorrect = chipName ? CORRECT_MAPPING[chipName] === droppedCardId : false;
+
+          // Actualizar estado de conexiones
           setGameState((prev) => {
             const existingIndex = prev.connections.findIndex(
               (c) => c.nameId === nameId
@@ -213,13 +261,112 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
               newConnections.push({ nameId, cardId: droppedCardId });
             }
 
-            // Por ahora solo guardamos la conexión, sin marcar correcto/incorrecto todavía
             return {
               ...prev,
               connections: newConnections,
               draggingNameId: null,
             };
           });
+
+          if (isCorrect) {
+            // MATCH CORRECTO: persistir resolución y mostrar feedback temporal
+            if (chipName) {
+              // 1) Marcar card como resuelta con el nombre del chip
+              setResolvedByCard((prev) => ({
+                ...prev,
+                [droppedCardId]: chipName,
+              }));
+
+              // 2) Remover chip de la lista disponible
+              setGameState((prev) => ({
+                ...prev,
+                chips: prev.chips.filter((c) => c.id !== nameId),
+              }));
+
+              // 3) Mostrar feedback verde temporal (5s)
+              setCardFeedback((prev) => ({
+                ...prev,
+                [droppedCardId]: "correct",
+              }));
+
+              // 4) Programar timeout para remover solo el feedback visual (mantener resolución)
+              const existingTimer = correctFeedbackTimersRef.current[droppedCardId];
+              if (existingTimer) {
+                clearTimeout(existingTimer);
+              }
+
+              const timer = setTimeout(() => {
+                setCardFeedback((prev) => ({
+                  ...prev,
+                  [droppedCardId]: "idle",
+                }));
+                correctFeedbackTimersRef.current[droppedCardId] = null;
+              }, CORRECT_FEEDBACK_DELAY);
+
+              correctFeedbackTimersRef.current[droppedCardId] = timer;
+            }
+          } else {
+            // MATCH INCORRECTO: feedback temporal rojo
+            setCardStatus((prev) => ({
+              ...prev,
+              [droppedCardId]: "incorrect",
+            }));
+
+            setCardFeedback((prev) => ({
+              ...prev,
+              [droppedCardId]: "incorrect",
+            }));
+
+            // Cancelar timer existente para esta card si existe
+            const existingTimer = resetTimersRef.current[droppedCardId];
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+            }
+
+            // Crear nuevo timer para resetear a idle después de 5s
+            const timer = setTimeout(() => {
+              setCardStatus((prev) => ({
+                ...prev,
+                [droppedCardId]: "idle",
+              }));
+              setCardFeedback((prev) => ({
+                ...prev,
+                [droppedCardId]: "idle",
+              }));
+              resetTimersRef.current[droppedCardId] = null;
+            }, INCORRECT_RESET_DELAY);
+
+            resetTimersRef.current[droppedCardId] = timer;
+          }
+
+          // Si había otra card conectada previamente a este chip, resetear su status
+          const previousConnection = gameState.connections.find((c) => c.nameId === nameId);
+          if (previousConnection && previousConnection.cardId !== droppedCardId) {
+            // Cancelar timers de la card anterior si existen
+            const previousTimer = resetTimersRef.current[previousConnection.cardId];
+            if (previousTimer) {
+              clearTimeout(previousTimer);
+              resetTimersRef.current[previousConnection.cardId] = null;
+            }
+
+            const previousCorrectTimer = correctFeedbackTimersRef.current[previousConnection.cardId];
+            if (previousCorrectTimer) {
+              clearTimeout(previousCorrectTimer);
+              correctFeedbackTimersRef.current[previousConnection.cardId] = null;
+            }
+
+            // Solo resetear si no está resuelta
+            if (!resolvedByCard[previousConnection.cardId]) {
+              setCardStatus((prev) => ({
+                ...prev,
+                [previousConnection.cardId]: "idle",
+              }));
+              setCardFeedback((prev) => ({
+                ...prev,
+                [previousConnection.cardId]: "idle",
+              }));
+            }
+          }
         } else {
           setGameState((prev) => ({
             ...prev,
@@ -239,8 +386,24 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       document.addEventListener("pointermove", handlePointerMove);
       document.addEventListener("pointerup", handlePointerUp);
     },
-    []
+    [resolvedByCard, gameState]
   );
+
+  // Cleanup: limpiar todos los timeouts pendientes al desmontar
+  useEffect(() => {
+    return () => {
+      Object.values(resetTimersRef.current).forEach((timer) => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      });
+      Object.values(correctFeedbackTimersRef.current).forEach((timer) => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      });
+    };
+  }, []);
 
   const handleCardDrop = useCallback((cardId: string) => {
     // Mantenido por compatibilidad
@@ -263,6 +426,9 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     );
   }
 
+  // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
+  const isGameComplete = gameState.chips.length === 0;
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
@@ -282,6 +448,9 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
             <CardStage
               cards={gameState.cards}
               highlightedCardId={activeCardId}
+              cardStatus={cardStatus}
+              resolvedByCard={resolvedByCard}
+              cardFeedback={cardFeedback}
               onCardHover={() => {}}
               onCardDrop={handleCardDrop}
               connectSlotRef={registerConnectSlot}
@@ -304,9 +473,16 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       {/* Botón Reveal Answers centrado en la parte inferior del layout */}
       <div
         className="absolute left-1/2"
-        style={{ bottom: 0, transform: "translateX(-50%)" }}
+        style={{ bottom: "32px", transform: "translateX(-50%)" }}
       >
-        <RevealAnswersButton onClick={handleRevealAnswers} />
+        {!isGameComplete && (
+          <RevealAnswersButton onClick={handleRevealAnswers} />
+        )}
+        {isGameComplete && (
+          <GamePrimaryButton onClick={() => console.log("continue")}>
+            Continue
+          </GamePrimaryButton>
+        )}
       </div>
 
       {/* Overlay de flecha durante drag */}
