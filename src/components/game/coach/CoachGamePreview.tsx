@@ -31,7 +31,7 @@ export function CoachGamePreview({ skipBackground = true, hideTitle = false }: C
       <div className="relative z-10 min-h-screen">
         <TopHUD
           lives={5}
-          round={1}
+          elapsedSeconds={0}
           isMuted={false}
           onPauseClick={() => {}}
           onMuteToggle={() => {}}

@@ -12,7 +12,10 @@ interface CardStageProps {
   onCardHover: (cardId: string | null) => void;
   onCardDrop: (cardId: string) => void;
   connectSlotRef?: (cardId: string, element: HTMLDivElement | null) => void;
+  animateMount?: boolean;
 }
+
+const CARD_STAGGER_MS = 80;
 
 export function CardStage({
   cards,
@@ -23,13 +26,15 @@ export function CardStage({
   onCardHover,
   onCardDrop,
   connectSlotRef,
+  animateMount = false,
 }: CardStageProps) {
   return (
     <div className="relative z-10 flex items-end justify-center gap-[20px] px-4">
-      {cards.map((card) => (
+      {cards.map((card, index) => (
         <PhotoCardComponent
           key={card.id}
           card={card}
+          index={index}
           isHighlighted={card.id === highlightedCardId}
           cardStatus={cardStatus[card.id]}
           resolvedChipName={resolvedByCard[card.id]}
@@ -38,6 +43,8 @@ export function CardStage({
           onHoverLeave={() => onCardHover(null)}
           onDrop={() => onCardDrop(card.id)}
           connectSlotRef={connectSlotRef}
+          animateMount={animateMount}
+          staggerDelayMs={CARD_STAGGER_MS}
         />
       ))}
     </div>

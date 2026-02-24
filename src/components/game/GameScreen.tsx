@@ -47,6 +47,71 @@ const CORRECT_MAPPING: Record<string, string> = {
 const INCORRECT_RESET_DELAY = 5000; // 5 segundos
 const CORRECT_FEEDBACK_DELAY = 5000; // 5 segundos
 
+const MUTED_STORAGE_KEY = "maxman_sound_muted";
+const BG_VOLUME = 0.075; // música ambiental un poco más baja
+const SFX_VOLUME = 0.5; // más fuerte que la música para que se escuchen por encima
+
+/** Crea o reanuda el AudioContext en el primer gesto del usuario */
+async function getAudioContext(audioContextRef: React.MutableRefObject<AudioContext | null>): Promise<AudioContext | null> {
+  if (typeof window === "undefined") return null;
+  let ctx = audioContextRef.current;
+  if (!ctx) {
+    ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    audioContextRef.current = ctx;
+  }
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
+  return ctx;
+}
+
+/** Fallback: tono suave en loop cuando no existe lofi.mp3 */
+async function startFallbackBgMusic(
+  audioContextRef: React.MutableRefObject<AudioContext | null>,
+  gainRef: React.MutableRefObject<GainNode | null>
+): Promise<() => void> {
+  const ctx = await getAudioContext(audioContextRef);
+  if (!ctx) return () => {};
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  gain.gain.value = 0.048; // ~20% menos que antes; coherente con BG_VOLUME
+  gainRef.current = gain;
+  osc.type = "sine";
+  osc.frequency.value = 110;
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(0);
+  return () => {
+    try {
+      osc.stop();
+      gain.disconnect();
+    } catch (_) {}
+    gainRef.current = null;
+  };
+}
+
+/** Fallback: sonidos con Web Audio API cuando no hay archivos MP3 */
+function playFallbackSfx(
+  audioContextRef: React.MutableRefObject<AudioContext | null>,
+  type: "correct" | "incorrect" | "drag" | "complete"
+) {
+  getAudioContext(audioContextRef).then((ctx) => {
+    if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  const freq = type === "correct" ? 523 : type === "incorrect" ? 220 : type === "drag" ? 330 : 659;
+  osc.frequency.value = freq;
+  osc.type = "sine";
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.start(now);
+  osc.stop(now + 0.15);
+  });
+}
+
 export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [cardStatus, setCardStatus] = useState<Record<string, "correct" | "incorrect" | "idle">>({});
@@ -61,23 +126,117 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   const resetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const correctFeedbackTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
-  const [gameState, setGameState] = useState<GameState>({
-    round: 1,
-    lives: 5,
-    isPaused: false,
-    isMuted: false,
-    selectedCardId: null,
-    selectedChipId: null,
-    hoveredNameId: null,
-    draggingNameId: null,
-    dragState: null,
-    cards: mockCards,
-    chips: mockChips,
-    connections: [],
-    showSuccess: false,
+  const bgAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fallbackBgStopRef = useRef<(() => void) | null>(null);
+  const fallbackGainRef = useRef<GainNode | null>(null);
+  const useFallbackRef = useRef(false);
+  const sfxRefs = useRef<Record<string, HTMLAudioElement>>({});
+  const mutedRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const [gameState, setGameState] = useState<GameState>(() => {
+    let isMuted = false;
+    if (typeof window !== "undefined") {
+      try {
+        isMuted = localStorage.getItem(MUTED_STORAGE_KEY) === "true";
+      } catch (_) {}
+    }
+    return {
+      round: 1,
+      lives: 5,
+      isPaused: false,
+      isMuted,
+      selectedCardId: null,
+      selectedChipId: null,
+      hoveredNameId: null,
+      draggingNameId: null,
+      dragState: null,
+      cards: mockCards,
+      chips: mockChips,
+      connections: [],
+      showSuccess: false,
+    };
   });
 
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [showCardsAndChips, setShowCardsAndChips] = useState(false);
+
+  useEffect(() => {
+    mutedRef.current = gameState.isMuted;
+  }, [gameState.isMuted]);
+
+  // Música de fondo: arranca sola al entrar (autoplay); si el navegador bloquea, primer pointerdown. No vinculada al botón. No se detiene nunca.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const audio = new Audio("/lofi.mp3");
+    audio.loop = true;
+    audio.volume = BG_VOLUME;
+    bgAudioRef.current = audio;
+
+    let startOnInteraction: (() => void) | null = null;
+
+    const tryPlay = () => {
+      audio.play().catch(() => {
+        startOnInteraction = () => {
+          audio.play().catch(() => {});
+          if (startOnInteraction) window.removeEventListener("pointerdown", startOnInteraction);
+        };
+        window.addEventListener("pointerdown", startOnInteraction);
+      });
+    };
+
+    const onError = () => {
+      if (!fallbackGainRef.current) {
+        useFallbackRef.current = true;
+        startFallbackBgMusic(audioContextRef, fallbackGainRef).then((stop) => {
+          if (stop) fallbackBgStopRef.current = stop;
+        });
+      }
+    };
+
+    audio.addEventListener("error", onError);
+    audio.addEventListener("canplaythrough", tryPlay, { once: true });
+    tryPlay();
+
+    return () => {
+      audio.removeEventListener("error", onError);
+      if (startOnInteraction) window.removeEventListener("pointerdown", startOnInteraction);
+      fallbackBgStopRef.current?.();
+      fallbackBgStopRef.current = null;
+      fallbackGainRef.current = null;
+      useFallbackRef.current = false;
+      audio.pause();
+      audio.currentTime = 0;
+      bgAudioRef.current = null;
+    };
+  }, []);
+
+  // Secuencia de entrada: primero título (fade-in), luego cards + chips
+  useEffect(() => {
+    const t = setTimeout(() => setShowCardsAndChips(true), 500);
+    return () => clearTimeout(t);
+  }, []);
+
+  function getSfx(type: "correct" | "incorrect" | "drag" | "complete"): HTMLAudioElement {
+    if (!sfxRefs.current[type]) {
+      const audio = new Audio(`/audio/sfx/${type}.mp3`);
+      audio.volume = SFX_VOLUME;
+      sfxRefs.current[type] = audio;
+    }
+    return sfxRefs.current[type];
+  }
+
+  const playSfx = useCallback((type: "correct" | "incorrect" | "drag" | "complete") => {
+    if (mutedRef.current) return;
+    const sfx = getSfx(type);
+    sfx.currentTime = 0;
+    sfx.play().catch(() => {
+      playFallbackSfx(audioContextRef, type);
+    });
+  }, []);
+
+  // El botón arriba a la derecha es para subtítulos, no para audio; la música no se detiene nunca.
 
   const handleTogglePause = () => {
     setIsPaused((prev) => !prev);
@@ -89,10 +248,13 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   };
 
   const handleMuteToggle = () => {
-    setGameState((prev) => ({
-      ...prev,
-      isMuted: !prev.isMuted,
-    }));
+    setGameState((prev) => {
+      const next = !prev.isMuted;
+      try {
+        localStorage.setItem(MUTED_STORAGE_KEY, next ? "true" : "false");
+      } catch (_) {}
+      return { ...prev, isMuted: next };
+    });
   };
 
   const handleChipHover = useCallback((nameId: string | null) => {
@@ -128,6 +290,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     (nameId: string, e: React.PointerEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      playSfx("drag");
 
       const chipElement = chipRefs.current.get(nameId);
       if (!chipElement) return;
@@ -159,42 +322,50 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       const handlePointerMove = (moveEvent: PointerEvent) => {
         if (!dragStateRef.current) return;
 
-        // Clamp la punta de la flecha al área del canvas (cards + slots)
-        const canvasRect = canvasRef.current?.getBoundingClientRect();
-        let clampedX = moveEvent.clientX;
-        let clampedY = moveEvent.clientY;
+        const pointerX = moveEvent.clientX;
+        const pointerY = moveEvent.clientY;
 
+        // Clamp al área del canvas (solo cuando NO hay slot)
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        let clampedX = pointerX;
+        let clampedY = pointerY;
         if (canvasRect) {
-          clampedX = Math.min(Math.max(moveEvent.clientX, canvasRect.left), canvasRect.right);
-          clampedY = Math.min(Math.max(moveEvent.clientY, canvasRect.top), canvasRect.bottom);
+          clampedX = Math.min(Math.max(pointerX, canvasRect.left), canvasRect.right);
+          clampedY = Math.min(Math.max(pointerY, canvasRect.top), canvasRect.bottom);
         }
 
-        // Detectar card bajo la punta de la flecha para highlight en drag
+        let endX = clampedX;
+        let endY = clampedY;
         let hoveredCardId: string | null = null;
-        const elementAtPoint = document.elementFromPoint(clampedX, clampedY);
-        if (elementAtPoint) {
-          const targetElement = elementAtPoint.closest('[data-target-id]') as HTMLElement | null;
+
+        // Snap obligatorio: detectar slot con coords del puntero (no clamp)
+        const el = document.elementFromPoint(pointerX, pointerY);
+        const slot = el?.closest('[data-connect-slot="true"]') as HTMLElement | null;
+        if (slot) {
+          const r = slot.getBoundingClientRect();
+          endX = r.left + r.width / 2;
+          endY = r.top + r.height / 2;
+          const slotCardId = slot.getAttribute("data-card-id");
+          if (slotCardId && slotCardId.startsWith("card-") && !resolvedByCard[slotCardId]) {
+            hoveredCardId = slotCardId;
+          }
+        } else if (el) {
+          const targetElement = el.closest('[data-target-id]') as HTMLElement | null;
           if (targetElement) {
             const targetId = targetElement.getAttribute("data-target-id");
-            if (targetId && targetId.startsWith("card-")) {
-              // Solo highlight si la card no está resuelta
-              if (!resolvedByCard[targetId]) {
-                hoveredCardId = targetId;
-              }
+            if (targetId && targetId.startsWith("card-") && !resolvedByCard[targetId]) {
+              hoveredCardId = targetId;
             }
           }
         }
-        setActiveCardId(hoveredCardId);
 
+        setActiveCardId(hoveredCardId);
         dragStateRef.current = {
           ...dragStateRef.current,
-          pointerX: clampedX,
-          pointerY: clampedY,
+          pointerX: endX,
+          pointerY: endY,
         };
-
-        setDragState({
-          ...dragStateRef.current,
-        });
+        setDragState({ ...dragStateRef.current });
       };
 
       const handlePointerUp = (upEvent: PointerEvent) => {
@@ -202,17 +373,25 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
         const dropX = dragStateRef.current?.pointerX ?? upEvent.clientX;
         const dropY = dragStateRef.current?.pointerY ?? upEvent.clientY;
 
-        // Detectar si cayó sobre una card o connect slot usando elementFromPoint
+        // Detectar si cayó sobre connect slot o card usando elementFromPoint
         const elementAtDrop = document.elementFromPoint(dropX, dropY);
         let droppedCardId: string | null = null;
 
         if (elementAtDrop) {
-          // Buscar data-target-id hacia arriba en el DOM
-          const targetElement = elementAtDrop.closest('[data-target-id]') as HTMLElement;
-          if (targetElement) {
-            const targetId = targetElement.getAttribute('data-target-id');
-            if (targetId && targetId.startsWith('card-')) {
-              droppedCardId = targetId;
+          const slot = elementAtDrop.closest('[data-connect-slot="true"]') as HTMLElement | null;
+          if (slot) {
+            const slotCardId = slot.getAttribute("data-card-id");
+            if (slotCardId && slotCardId.startsWith("card-")) {
+              droppedCardId = slotCardId;
+            }
+          }
+          if (!droppedCardId) {
+            const targetElement = elementAtDrop.closest('[data-target-id]') as HTMLElement | null;
+            if (targetElement) {
+              const targetId = targetElement.getAttribute("data-target-id");
+              if (targetId && targetId.startsWith("card-")) {
+                droppedCardId = targetId;
+              }
             }
           }
         }
@@ -276,8 +455,11 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
           });
 
           if (isCorrect) {
+            playSfx("correct");
             // MATCH CORRECTO: persistir resolución y mostrar feedback temporal
             if (chipName) {
+              const willBeComplete =
+                Object.keys(resolvedByCard).length + 1 === gameState.cards.length;
               // 1) Marcar card como resuelta con el nombre del chip
               setResolvedByCard((prev) => ({
                 ...prev,
@@ -296,6 +478,10 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
                 [droppedCardId]: "correct",
               }));
 
+              if (willBeComplete) {
+                playSfx("complete");
+              }
+
               // 4) Programar timeout para remover solo el feedback visual (mantener resolución)
               const existingTimer = correctFeedbackTimersRef.current[droppedCardId];
               if (existingTimer) {
@@ -313,6 +499,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
               correctFeedbackTimersRef.current[droppedCardId] = timer;
             }
           } else {
+            playSfx("incorrect");
             // MATCH INCORRECTO: feedback temporal rojo
             setCardStatus((prev) => ({
               ...prev,
@@ -393,7 +580,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       document.addEventListener("pointermove", handlePointerMove);
       document.addEventListener("pointerup", handlePointerUp);
     },
-    [resolvedByCard, gameState]
+    [resolvedByCard, gameState, playSfx]
   );
 
   // Cleanup: limpiar todos los timeouts pendientes al desmontar
@@ -448,7 +635,8 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       hoveredNameId: null,
     }));
 
-    // Volver a modo play
+    // Volver a modo play y resetear timer
+    setElapsedSeconds(0);
     setMode("play");
   };
 
@@ -470,9 +658,14 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
   const isGameComplete = gameState.chips.length === 0;
 
+  // Timer real: actualiza cada segundo en play mode, pausa cuando isPaused
   useEffect(() => {
-    console.log("mode", mode);
-  }, [mode]);
+    if (mode !== "play" || isPaused) return;
+    const interval = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [mode, isPaused]);
 
   // En reveal mode, crear resolvedByCard automático usando CORRECT_MAPPING
   const revealResolvedByCard = mode === "reveal" 
@@ -502,16 +695,30 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     };
   }, [isPaused]);
 
+  const connectedCount = Object.keys(resolvedByCard).length;
+  const totalCards = gameState.cards.length;
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
+
+      {/* Capa “respiración” muy sutil (solo play; reduced-motion la desactiva en CSS) */}
+      {mode === "play" && (
+        <div
+          className="game-breathe absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse 80% 80% at 50% 50%, #fff 0%, transparent 70%)",
+          }}
+          aria-hidden
+        />
+      )}
 
       {/* Contenedor del juego: se bloquea mientras está en pausa o en reveal mode */}
       <div style={isPaused || mode === "reveal" ? { pointerEvents: "none" } : undefined}>
         <div className="relative z-10 min-h-screen">
           <TopHUD
             lives={gameState.lives}
-            round={gameState.round}
+            elapsedSeconds={elapsedSeconds}
             isMuted={gameState.isMuted}
             mode={mode}
             onPauseClick={handleTogglePause}
@@ -532,33 +739,41 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
                 Right Answers are ...
               </p>
             ) : (
-              <GameInstruction />
-            )}
-            <div ref={canvasRef} style={{ marginTop: "58px" }}>
-              <CardStage
-                cards={gameState.cards}
-                highlightedCardId={mode === "reveal" ? null : activeCardId}
-                cardStatus={cardStatus}
-                resolvedByCard={revealResolvedByCard}
-                cardFeedback={cardFeedback}
-                onCardHover={() => {}}
-                onCardDrop={handleCardDrop}
-                connectSlotRef={registerConnectSlot}
-              />
-            </div>
-
-            {/* Ocultar ChipRow en reveal mode */}
-            {mode !== "reveal" && (
-              <div style={{ marginTop: "78px" }}>
-                <ChipRow
-                  chips={gameState.chips}
-                  hoveredNameId={gameState.hoveredNameId}
-                  draggingNameId={gameState.draggingNameId}
-                  onChipHover={handleChipHover}
-                  onArrowPointerDown={handleArrowPointerDown}
-                  chipRef={registerChipRef}
-                />
+              <div className="game-title-enter">
+                <GameInstruction />
               </div>
+            )}
+            {showCardsAndChips && (
+              <>
+                {/* Cards sin overflow-hidden: slot y hover pueden salir del borde */}
+                <div ref={canvasRef} style={{ marginTop: "58px" }}>
+                  <CardStage
+                    cards={gameState.cards}
+                    highlightedCardId={mode === "reveal" ? null : activeCardId}
+                    cardStatus={cardStatus}
+                    resolvedByCard={revealResolvedByCard}
+                    cardFeedback={cardFeedback}
+                    onCardHover={() => {}}
+                    onCardDrop={handleCardDrop}
+                    connectSlotRef={registerConnectSlot}
+                    animateMount={mode === "play"}
+                  />
+                </div>
+
+                {/* Ocultar ChipRow en reveal mode */}
+                {mode !== "reveal" && (
+                  <div style={{ marginTop: "78px" }}>
+                    <ChipRow
+                      chips={gameState.chips}
+                      hoveredNameId={gameState.hoveredNameId}
+                      draggingNameId={gameState.draggingNameId}
+                      onChipHover={handleChipHover}
+                      onArrowPointerDown={handleArrowPointerDown}
+                      chipRef={registerChipRef}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </main>
         </div>
@@ -633,7 +848,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
           </div>
         )}
 
-        {/* Overlay de flecha durante drag (solo en play mode) */}
+        {/* Overlay de flecha durante drag (sin clip; encima de cards/chips) */}
         {mode === "play" && dragState && (
           <DragArrowOverlay
             originX={dragState.originX}

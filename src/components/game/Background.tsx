@@ -1,5 +1,7 @@
 "use client";
 
+import { BackgroundHalos } from "./BackgroundHalos";
+
 // Variables configurables
 const RING_STROKE = 144; // Grosor del stroke en px
 const RING_BLUR = 250; // Blur en px
@@ -10,6 +12,9 @@ export function Background() {
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {/* Fondo sólido */}
       <div className="absolute inset-0 bg-[#284B79]" />
+
+      {/* Halos blancos blur, animación muy suave (detrás del aro) */}
+      <BackgroundHalos />
 
       {/* Aro de luz */}
       <div

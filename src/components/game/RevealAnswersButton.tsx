@@ -16,6 +16,7 @@ export function RevealAnswersButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      className="game-focus-visible"
       style={{
         display: "inline-flex",
         height: "60px",

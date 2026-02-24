@@ -59,11 +59,11 @@ export function GameCard({
         }}
       />
 
-      {/* Overlay de estado incorrecto */}
+      {/* Overlay de estado incorrecto (fade-in suave) */}
       {isIncorrect && (
         <>
           <div
-            className="absolute inset-0 pointer-events-none"
+            className="game-overlay-fade-in absolute inset-0 pointer-events-none"
             style={{
               borderRadius: `${CARD_RADIUS}px`,
               border: "1px solid #F6743E",
@@ -72,9 +72,8 @@ export function GameCard({
               zIndex: 1,
             }}
           />
-          {/* Ícono X rojo centrado */}
           <div
-            className="absolute pointer-events-none flex items-center justify-center"
+            className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
             style={{
               top: "50%",
               left: "50%",
@@ -86,7 +85,7 @@ export function GameCard({
           >
             <Image
               src="/assets/incorrect-icon.png"
-              alt="Incorrect"
+              alt=""
               width={INCORRECT_ICON_SIZE}
               height={INCORRECT_ICON_SIZE}
               style={{
@@ -99,11 +98,11 @@ export function GameCard({
         </>
       )}
 
-      {/* Overlay de estado correcto (feedback temporal) */}
+      {/* Overlay de estado correcto (feedback temporal, fade-in suave) */}
       {isCorrectFeedback && (
         <>
           <div
-            className="absolute inset-0 pointer-events-none"
+            className="game-overlay-fade-in absolute inset-0 pointer-events-none"
             style={{
               borderRadius: `${CARD_RADIUS}px`,
               border: "1px solid rgba(0, 142, 65, 0.40)",
@@ -112,9 +111,8 @@ export function GameCard({
               zIndex: 1,
             }}
           />
-          {/* Ícono check verde centrado */}
           <div
-            className="absolute pointer-events-none flex items-center justify-center"
+            className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
             style={{
               top: "50%",
               left: "50%",
@@ -126,7 +124,7 @@ export function GameCard({
           >
             <Image
               src="/assets/correct-icon.png"
-              alt="Correct"
+              alt=""
               width={CORRECT_ICON_SIZE}
               height={CORRECT_ICON_SIZE}
               style={{
@@ -140,9 +138,9 @@ export function GameCard({
       )}
 
       {isResolved ? (
-        /* NameTag cuando la card está resuelta */
+        /* NameTag cuando la card está resuelta (aparición suave) */
         <div
-          className="absolute pointer-events-none"
+          className="game-nametag-enter absolute pointer-events-none"
           style={{
             left: "50%",
             bottom: 0,
@@ -180,6 +178,7 @@ export function GameCard({
               connectSlotRef(cardId, el);
             }
           }}
+          data-connect-slot="true"
           data-card-id={cardId}
           data-target-id={cardId}
           className="absolute"

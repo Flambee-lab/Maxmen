@@ -23,18 +23,19 @@ export function ChipRow({
   return (
     <div className="relative z-10 flex items-center justify-center gap-[16px]">
       {chips.map((chip) => (
-        <Chip
-          key={chip.id}
-          label={chip.name}
-          nameId={chip.id}
-          arrowHeight={32}
-          isHovered={chip.id === hoveredNameId}
-          isDragging={chip.id === draggingNameId}
-          onArrowPointerDown={(e) => onArrowPointerDown(chip.id, e)}
-          onMouseEnter={() => onChipHover(chip.id)}
-          onMouseLeave={() => onChipHover(null)}
-          chipRef={chipRef}
-        />
+        <div key={chip.id} className="game-chip-enter">
+          <Chip
+            label={chip.name}
+            nameId={chip.id}
+            arrowHeight={32}
+            isHovered={chip.id === hoveredNameId}
+            isDragging={chip.id === draggingNameId}
+            onArrowPointerDown={(e) => onArrowPointerDown(chip.id, e)}
+            onMouseEnter={() => onChipHover(chip.id)}
+            onMouseLeave={() => onChipHover(null)}
+            chipRef={chipRef}
+          />
+        </div>
       ))}
     </div>
   );

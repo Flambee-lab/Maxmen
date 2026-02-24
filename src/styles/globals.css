@@ -105,3 +105,196 @@ body {
   opacity: 0;
   visibility: hidden;
 }
+
+/* ========== Calm / Cognitive / Therapeutic – animaciones suaves ========== */
+
+/* Título de instrucción: fade-in suave (350–600ms), sin bounce */
+@keyframes game-title-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Entrada cards: opacity + translateY, stagger por índice */
+@keyframes game-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Entrada chips: opacity + blur */
+@keyframes game-chip-enter {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Overlay correcto/incorrecto: fade in */
+@keyframes game-overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* NameTag: aparición suave */
+@keyframes game-nametag-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Fondo “respiración” muy sutil */
+@keyframes game-breathe {
+  0%,
+  100% {
+    opacity: 0.06;
+  }
+  50% {
+    opacity: 0.1;
+  }
+}
+
+/* Clases que aplican las animaciones (duración/delay; stagger se pone inline) */
+.game-title-enter {
+  animation: game-title-enter 450ms ease-out both;
+}
+.game-card-enter {
+  animation: game-card-enter 450ms ease-out both;
+}
+.game-chip-enter {
+  animation: game-chip-enter 350ms ease-out 250ms both;
+}
+.game-overlay-fade-in {
+  animation: game-overlay-fade-in 200ms ease-out both;
+}
+.game-overlay-fade-out {
+  animation: game-overlay-fade-in 400ms ease-out reverse both;
+}
+.game-nametag-enter {
+  animation: game-nametag-enter 250ms ease-out both;
+}
+.game-breathe {
+  animation: game-breathe 10s ease-in-out infinite;
+}
+
+/* Halos de fondo: movimiento muy lento (orbit/rotate), apenas perceptible */
+@keyframes game-halo-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(12px, -8px) scale(1.02); }
+  66% { transform: translate(-8px, 10px) scale(0.98); }
+}
+@keyframes game-halo-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-10px, 12px) scale(0.99); }
+  66% { transform: translate(14px, -6px) scale(1.01); }
+}
+@keyframes game-halo-3 {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.02); }
+}
+.game-halo-1 {
+  animation: game-halo-1 22s ease-in-out infinite;
+}
+.game-halo-2 {
+  animation: game-halo-2 26s ease-in-out infinite;
+}
+.game-halo-3 {
+  animation: game-halo-3 20s ease-in-out infinite;
+}
+
+/* Hover/focus calm en cards: micro-elevación */
+.game-card-hover-scale {
+  transition: transform 150ms ease-out;
+}
+.game-card-hover-scale:hover,
+.game-card-hover-scale:focus-within,
+.game-card-highlighted {
+  transform: scale(1.01);
+}
+
+/* Shell de la card (208x208): hover visible — levanta + sombra/glow, 180ms, sin bounce */
+.game-card-shell {
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out, filter 180ms ease-out;
+  border-radius: 16px;
+}
+.game-card-shell:hover,
+.game-card-shell:focus-within {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.28);
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.12));
+}
+.game-card-shell.game-card-highlighted {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.28);
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.12));
+}
+
+/* Timer: transición suave del número */
+.game-timer-value {
+  transition: opacity 150ms ease-out;
+}
+
+/* Focus visible accesible (botones, chips) */
+.game-focus-visible:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+/* Respetar prefers-reduced-motion: desactivar animaciones */
+@media (prefers-reduced-motion: reduce) {
+  .game-title-enter,
+  .game-card-enter,
+  .game-chip-enter,
+  .game-overlay-fade-in,
+  .game-nametag-enter,
+  .game-breathe,
+  .game-halo-1,
+  .game-halo-2,
+  .game-halo-3 {
+    animation: none !important;
+  }
+  .game-title-enter,
+  .game-card-enter {
+    opacity: 1;
+    transform: none;
+  }
+  .game-card-shell:hover,
+  .game-card-shell:focus-within,
+  .game-card-shell.game-card-highlighted {
+    transform: none;
+  }
+  .game-card-shell:hover,
+  .game-card-shell:focus-within,
+  .game-card-shell.game-card-highlighted {
+    box-shadow: 0 14px 26px rgba(0, 0, 0, 0.28);
+    filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.12));
+  }
+  .game-chip-enter {
+    opacity: 1;
+    filter: none;
+  }
+  .game-card-hover-scale:hover,
+  .game-card-hover-scale:focus-within,
+  .game-card-highlighted {
+    transform: none !important;
+  }
+}

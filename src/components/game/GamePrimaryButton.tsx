@@ -24,7 +24,7 @@ export function GamePrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={className}
+      className={`game-focus-visible ${className}`.trim()}
       style={{
         width: "320px",
         height: "68px",

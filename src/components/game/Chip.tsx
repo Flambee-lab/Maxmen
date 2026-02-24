@@ -63,7 +63,7 @@ export function Chip({
 
       <button
         type="button"
-        className="relative"
+        className="relative game-focus-visible"
         style={{
           height: `${OUTER_HEIGHT}px`,
           padding: `${OUTER_PADDING}px`,

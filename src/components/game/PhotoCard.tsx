@@ -5,6 +5,7 @@ import { GameCard } from "./GameCard";
 
 interface PhotoCardProps {
   card: PhotoCardType;
+  index?: number;
   isHighlighted: boolean;
   cardStatus?: "correct" | "incorrect" | "idle";
   resolvedChipName?: string; // Nombre del chip resuelto en esta card
@@ -13,10 +14,13 @@ interface PhotoCardProps {
   onHoverLeave: () => void;
   onDrop: () => void;
   connectSlotRef?: (cardId: string, element: HTMLDivElement | null) => void;
+  animateMount?: boolean;
+  staggerDelayMs?: number;
 }
 
 export function PhotoCardComponent({
   card,
+  index = 0,
   isHighlighted,
   cardStatus = "idle",
   resolvedChipName,
@@ -25,17 +29,33 @@ export function PhotoCardComponent({
   onHoverLeave,
   onDrop,
   connectSlotRef,
+  animateMount = false,
+  staggerDelayMs = 80,
 }: PhotoCardProps) {
   const isResolved = !!resolvedChipName;
   // Solo mostrar highlight si no está resuelta y no está en feedback incorrecto
   const showHighlight = isHighlighted && !isResolved && cardFeedback !== "incorrect";
 
+  const enterStyle = animateMount
+    ? { animationDelay: `${index * staggerDelayMs}ms` }
+    : undefined;
+
   return (
-    <div className="flex flex-col items-center" data-target-id={card.id}>
+    <div
+      className={`flex flex-col items-center ${animateMount ? "game-card-enter" : ""} game-card-hover-scale ${showHighlight ? "game-card-highlighted" : ""}`}
+      style={enterStyle}
+      data-target-id={card.id}
+    >
       <div
         onMouseEnter={onHover}
         onMouseLeave={onHoverLeave}
+        onFocus={onHover}
+        onBlur={onHoverLeave}
         data-target-id={card.id}
+        tabIndex={0}
+        role="button"
+        aria-label={`Card ${card.name}`}
+        className="game-focus-visible game-card-shell"
         style={
           showHighlight
             ? {

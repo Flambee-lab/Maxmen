@@ -6,15 +6,14 @@ interface ConnectorArrowProps {
 const DEFAULT_HEIGHT = 32;
 const ARROW_WIDTH = 24;
 const STROKE_WIDTH = 4;
-const ARROW_COLOR_REST = "#3E5D86";
-const ARROW_COLOR_DRAGGING = "#FFFFFF";
+/** Flechas SIEMPRE blanco 100% en rest y en drag */
+const ARROW_COLOR = "#FFFFFF";
 
 export function ConnectorArrow({
   height = DEFAULT_HEIGHT,
   isDragging = false,
 }: ConnectorArrowProps) {
   const clampedHeight = Math.max(height, STROKE_WIDTH * 2);
-  const strokeColor = isDragging ? ARROW_COLOR_DRAGGING : ARROW_COLOR_REST;
 
   return (
     <svg
@@ -28,11 +27,12 @@ export function ConnectorArrow({
       aria-hidden="true"
     >
       <g
-        stroke={strokeColor}
+        stroke={ARROW_COLOR}
         strokeWidth={STROKE_WIDTH}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
+        style={{ opacity: 1 }}
       >
         <line
           x1={ARROW_WIDTH / 2}
@@ -46,7 +46,7 @@ export function ConnectorArrow({
           },${STROKE_WIDTH / 2 + 8} ${
             ARROW_WIDTH / 2 + 6
           },${STROKE_WIDTH / 2 + 8}`}
-          fill={strokeColor}
+          fill={ARROW_COLOR}
         />
       </g>
     </svg>
