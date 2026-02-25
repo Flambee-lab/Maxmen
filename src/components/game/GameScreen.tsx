@@ -516,8 +516,8 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     setCardFeedback({});
     setCardStatus({});
     setActiveCardId(null);
-    setDragState(null);
-    dragStateRef.current = null;
+    setActiveChipId(null);
+    setAimPos(null);
     
     // Limpiar todos los timers
     Object.values(resetTimersRef.current).forEach((timer) => {
