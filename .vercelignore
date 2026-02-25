@@ -1,5 +1,9 @@
 # Evitar que Vercel suba la carpeta de build de Next.js
+# (Vercel ya la ignora por defecto con CLI; esto asegura que nunca se suba)
 .next
+.next/
+**/.next
+**/.next/**
 node_modules
 .vercel
 out
