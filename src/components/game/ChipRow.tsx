@@ -7,8 +7,9 @@ interface ChipRowProps {
   chips: NameChip[];
   hoveredNameId: string | null;
   draggingNameId: string | null;
+  selectedChipId?: string | null;
   onChipHover: (nameId: string | null) => void;
-  onArrowPointerDown: (nameId: string, e: React.PointerEvent) => void;
+  onChipClick: (nameId: string) => void;
   chipRef?: (nameId: string, element: HTMLDivElement | null) => void;
 }
 
@@ -16,8 +17,9 @@ export function ChipRow({
   chips,
   hoveredNameId,
   draggingNameId,
+  selectedChipId = null,
   onChipHover,
-  onArrowPointerDown,
+  onChipClick,
   chipRef,
 }: ChipRowProps) {
   return (
@@ -30,7 +32,8 @@ export function ChipRow({
             arrowHeight={32}
             isHovered={chip.id === hoveredNameId}
             isDragging={chip.id === draggingNameId}
-            onArrowPointerDown={(e) => onArrowPointerDown(chip.id, e)}
+            isSelected={chip.id === selectedChipId}
+            onClick={() => onChipClick(chip.id)}
             onMouseEnter={() => onChipHover(chip.id)}
             onMouseLeave={() => onChipHover(null)}
             chipRef={chipRef}

@@ -2,18 +2,18 @@
 
 export function BackgroundHalos() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden>
       {/* Halo 1 */}
       <div
         className="game-halo game-halo-1"
         style={{
           position: "absolute",
-          width: "380px",
-          height: "380px",
+          width: "520px",
+          height: "520px",
           background: "rgba(255, 255, 255, 0.20)",
           filter: "blur(120px)",
           borderRadius: "9999px",
-          opacity: 0.14,
+          opacity: 0.3,
           left: "15%",
           top: "25%",
         }}
@@ -23,12 +23,12 @@ export function BackgroundHalos() {
         className="game-halo game-halo-2"
         style={{
           position: "absolute",
-          width: "420px",
-          height: "420px",
+          width: "600px",
+          height: "600px",
           background: "rgba(255, 255, 255, 0.20)",
           filter: "blur(120px)",
           borderRadius: "9999px",
-          opacity: 0.12,
+          opacity: 0.28,
           right: "10%",
           top: "40%",
         }}
@@ -38,15 +38,15 @@ export function BackgroundHalos() {
         className="game-halo game-halo-3"
         style={{
           position: "absolute",
-          width: "320px",
-          height: "320px",
+          width: "480px",
+          height: "480px",
           background: "rgba(255, 255, 255, 0.20)",
           filter: "blur(120px)",
           borderRadius: "9999px",
-          opacity: 0.16,
+          opacity: 0.3,
           left: "50%",
           bottom: "15%",
-          marginLeft: "-160px",
+          marginLeft: "-240px",
         }}
       />
     </div>

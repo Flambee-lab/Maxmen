@@ -51,6 +51,7 @@ export function PhotoCardComponent({
         onMouseLeave={onHoverLeave}
         onFocus={onHover}
         onBlur={onHoverLeave}
+        onClick={onDrop}
         data-target-id={card.id}
         tabIndex={0}
         role="button"

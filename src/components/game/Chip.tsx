@@ -12,6 +12,8 @@ interface ChipProps {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   chipRef?: (nameId: string, element: HTMLDivElement | null) => void;
+  onClick?: () => void;
+  isSelected?: boolean;
 }
 
 const OUTER_HEIGHT = 76;
@@ -33,6 +35,8 @@ export function Chip({
   onMouseEnter,
   onMouseLeave,
   chipRef,
+  onClick,
+  isSelected = false,
 }: ChipProps) {
   return (
     <div
@@ -45,17 +49,16 @@ export function Chip({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {!isDragging && (
+      {!isDragging && !isSelected && (
         <div
           style={{
             position: "absolute",
             bottom: "100%",
             left: "50%",
             transform: "translateX(-50%)",
-            cursor: "grab",
-            pointerEvents: "auto",
+            cursor: "default",
+            pointerEvents: "none",
           }}
-          onPointerDown={onArrowPointerDown}
         >
           <ConnectorArrow height={arrowHeight} isDragging={false} />
         </div>
@@ -77,6 +80,7 @@ export function Chip({
           boxSizing: "border-box",
         }}
         aria-label={`Chip ${label}`}
+        onClick={onClick}
       >
         <svg
           style={{

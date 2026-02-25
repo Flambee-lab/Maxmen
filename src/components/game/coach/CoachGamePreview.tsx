@@ -53,8 +53,9 @@ export function CoachGamePreview({ skipBackground = true, hideTitle = false }: C
               chips={COACH_CHIPS}
               hoveredNameId={null}
               draggingNameId={null}
+              selectedChipId={null}
               onChipHover={() => {}}
-              onArrowPointerDown={() => {}}
+              onChipClick={() => {}}
             />
           </div>
         </main>
