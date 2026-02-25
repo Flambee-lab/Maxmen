@@ -1,0 +1,5 @@
+# Evitar que Vercel suba la carpeta de build de Next.js
+.next
+node_modules
+.vercel
+out
