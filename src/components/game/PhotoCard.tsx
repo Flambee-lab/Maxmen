@@ -16,6 +16,9 @@ interface PhotoCardProps {
   connectSlotRef?: (cardId: string, element: HTMLDivElement | null) => void;
   animateMount?: boolean;
   staggerDelayMs?: number;
+  showSlotArrow?: boolean;
+  slotArrowOpacity?: number;
+  isOriginActive?: boolean;
 }
 
 export function PhotoCardComponent({
@@ -31,6 +34,9 @@ export function PhotoCardComponent({
   connectSlotRef,
   animateMount = false,
   staggerDelayMs = 80,
+  showSlotArrow = true,
+  slotArrowOpacity = 0.2,
+  isOriginActive = false,
 }: PhotoCardProps) {
   const isResolved = !!resolvedChipName;
   // Solo mostrar highlight si no está resuelta y no está en feedback incorrecto
@@ -76,6 +82,9 @@ export function PhotoCardComponent({
           resolvedChipName={resolvedChipName}
           cardFeedback={cardFeedback}
           connectSlotRef={connectSlotRef}
+          showSlotArrow={showSlotArrow}
+          slotArrowOpacity={slotArrowOpacity}
+          isOriginActive={isOriginActive}
         />
       </div>
     </div>

@@ -13,6 +13,9 @@ interface CardStageProps {
   onCardDrop: (cardId: string) => void;
   connectSlotRef?: (cardId: string, element: HTMLDivElement | null) => void;
   animateMount?: boolean;
+  showSlotArrow?: boolean;
+  /** Card que es origen en modo card → chip; su flecha a 100%, el resto 20% */
+  activeOriginCardId?: string | null;
 }
 
 const CARD_STAGGER_MS = 80;
@@ -27,6 +30,8 @@ export function CardStage({
   onCardDrop,
   connectSlotRef,
   animateMount = false,
+  showSlotArrow = true,
+  activeOriginCardId = null,
 }: CardStageProps) {
   return (
     <div className="relative z-10 flex items-end justify-center gap-[20px] px-4">
@@ -45,6 +50,9 @@ export function CardStage({
           connectSlotRef={connectSlotRef}
           animateMount={animateMount}
           staggerDelayMs={CARD_STAGGER_MS}
+          showSlotArrow={showSlotArrow}
+          slotArrowOpacity={activeOriginCardId === card.id ? 1 : 0.2}
+          isOriginActive={activeOriginCardId === card.id}
         />
       ))}
     </div>

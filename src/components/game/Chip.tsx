@@ -14,6 +14,10 @@ interface ChipProps {
   chipRef?: (nameId: string, element: HTMLDivElement | null) => void;
   onClick?: () => void;
   isSelected?: boolean;
+  /** Cuando true (modo card → chip activo), no se muestra la flecha encima del chip */
+  hideRestArrow?: boolean;
+  /** Opacidad de la flecha en reposo: 0.2 idle, 1 activa */
+  arrowOpacity?: number;
 }
 
 const OUTER_HEIGHT = 76;
@@ -37,6 +41,8 @@ export function Chip({
   chipRef,
   onClick,
   isSelected = false,
+  hideRestArrow = false,
+  arrowOpacity = 1,
 }: ChipProps) {
   return (
     <div
@@ -49,7 +55,7 @@ export function Chip({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {!isDragging && !isSelected && (
+      {!hideRestArrow && !isDragging && !isSelected && (
         <div
           style={{
             position: "absolute",
@@ -60,7 +66,7 @@ export function Chip({
             pointerEvents: "none",
           }}
         >
-          <ConnectorArrow height={arrowHeight} isDragging={false} />
+          <ConnectorArrow height={arrowHeight} isDragging={false} opacity={arrowOpacity} />
         </div>
       )}
 

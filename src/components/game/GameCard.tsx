@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { ConnectorArrow } from "./ConnectorArrow";
 
 interface GameCardProps {
   imageSrc: string;
@@ -10,6 +11,12 @@ interface GameCardProps {
   resolvedChipName?: string; // Nombre del chip resuelto en esta card
   cardFeedback?: "idle" | "incorrect" | "correct"; // Feedback temporal
   connectSlotRef?: (cardId: string, element: HTMLDivElement | null) => void;
+  /** Cuando false (modo chip → card activo), no se muestra la flecha debajo del connect slot */
+  showSlotArrow?: boolean;
+  /** Opacidad de la flecha del slot: 0.2 idle, 1 cuando esta card es el origen activo */
+  slotArrowOpacity?: number;
+  /** Cuando true (card es origen en modo card→chip), no se dibuja la flecha estática para no duplicar con el overlay */
+  isOriginActive?: boolean;
 }
 
 const CARD_SIZE = 208;
@@ -32,6 +39,9 @@ export function GameCard({
   resolvedChipName,
   cardFeedback = "idle",
   connectSlotRef,
+  showSlotArrow = true,
+  slotArrowOpacity = 0.2,
+  isOriginActive = false,
 }: GameCardProps) {
   const isIncorrect = cardFeedback === "incorrect";
   const isCorrectFeedback = cardFeedback === "correct";
@@ -205,6 +215,21 @@ export function GameCard({
               border: `${INNER_CIRCLE_BORDER}px solid #FFFFFF`,
             }}
           />
+          {/* Flecha estática debajo del connect slot para modo card → chip (oculta cuando modo chip activo o cuando esta card es el origen) */}
+          {showSlotArrow && !isOriginActive && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: "50%",
+              transform: "translateX(-50%) rotate(180deg)",
+              pointerEvents: "none",
+            }}
+            aria-hidden="true"
+          >
+            <ConnectorArrow height={32} opacity={slotArrowOpacity} />
+          </div>
+          )}
         </div>
       )}
     </div>

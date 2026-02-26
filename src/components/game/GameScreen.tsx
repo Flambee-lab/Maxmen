@@ -130,6 +130,7 @@ export function GameScreen({
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const canvasRef = useRef<HTMLDivElement>(null);
+  const chipsContainerRef = useRef<HTMLDivElement>(null);
   const resetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const correctFeedbackTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
@@ -169,6 +170,7 @@ export function GameScreen({
   const [remainingSeconds, setRemainingSeconds] = useState(2 * 60); // Countdown 2:00 → 0:00
   const [showCardsAndChips, setShowCardsAndChips] = useState(false);
   const [activeChipId, setActiveChipId] = useState<string | null>(null);
+  const [activeOriginCardId, setActiveOriginCardId] = useState<string | null>(null);
   const [aimPos, setAimPos] = useState<{ x: number; y: number } | null>(null);
 
   const effectiveIsMuted = typeof isMuted === "boolean" ? isMuted : gameState.isMuted;
@@ -237,24 +239,38 @@ export function GameScreen({
     }));
   }, []);
 
-  const handleChipClick = useCallback((chipId: string) => {
-    setGameState((prev) => ({
-      ...prev,
-      selectedChipId: prev.selectedChipId === chipId ? null : chipId,
-    }));
+  const handleChipClick = useCallback(
+    (chipId: string) => {
+      // Si estamos en modo card → chip, este click intenta completar conexión usando la card activa
+      if (activeOriginCardId) {
+        const cardId = activeOriginCardId;
+        resolveConnection(chipId, cardId);
+        setActiveOriginCardId(null);
+        return;
+      }
 
-    if (activeChipId === chipId) {
-      setActiveChipId(null);
+      // Modo normal: chip → card
+      setGameState((prev) => ({
+        ...prev,
+        selectedChipId: prev.selectedChipId === chipId ? null : chipId,
+      }));
+
+      if (activeChipId === chipId) {
+        setActiveChipId(null);
+        setAimPos(null);
+        setActiveCardId(null);
+        return;
+      }
+
+      // Activar modo chip → card y desactivar modo card → chip
+      setActiveOriginCardId(null);
+      setActiveChipId(chipId);
       setAimPos(null);
       setActiveCardId(null);
-      return;
-    }
-
-    setActiveChipId(chipId);
-    setAimPos(null);
-    setActiveCardId(null);
-    playSfx("drag");
-  }, [activeChipId, playSfx]);
+      playSfx("drag");
+    },
+    [activeChipId, activeOriginCardId, playSfx]
+  );
 
   const registerConnectSlot = useCallback(
     (cardId: string, element: HTMLDivElement | null) => {
@@ -294,9 +310,11 @@ export function GameScreen({
     };
   }, []);
 
-  // Mousemove global mientras hay chip activo: actualizar endpoint de la flecha (aimPos)
+  // Mousemove global mientras hay origen activo (chip → card o card → chip): actualizar endpoint de la flecha (aimPos)
   useEffect(() => {
-    if (!activeChipId) {
+    const hasChipOrigin = !!activeChipId;
+    const hasCardOrigin = !!activeOriginCardId;
+    if (!hasChipOrigin && !hasCardOrigin) {
       setAimPos(null);
       setActiveCardId(null);
       return;
@@ -311,43 +329,58 @@ export function GameScreen({
       let x = e.clientX;
       let y = e.clientY;
 
-      // clamp al rect del canvas
-      x = Math.max(rect.left, Math.min(x, rect.right));
-      y = Math.max(rect.top, Math.min(y, rect.bottom));
+      // Área válida: en modo card → chip incluir también el bloque de chips (hasta los botones)
+      if (hasCardOrigin && chipsContainerRef.current) {
+        const chipsRect = chipsContainerRef.current.getBoundingClientRect();
+        const top = Math.min(rect.top, chipsRect.top);
+        const bottom = Math.max(rect.bottom, chipsRect.bottom);
+        const left = Math.min(rect.left, chipsRect.left);
+        const right = Math.max(rect.right, chipsRect.right);
+        x = Math.max(left, Math.min(x, right));
+        y = Math.max(top, Math.min(y, bottom));
+      } else {
+        // Modo chip → card: clamp al rect del canvas
+        x = Math.max(rect.left, Math.min(x, rect.right));
+        y = Math.max(rect.top, Math.min(y, rect.bottom));
+      }
 
       let endX = x;
       let endY = y;
-      let hovered: string | null = null;
+      let hoveredCard: string | null = null;
 
-      // Detectar slot/card bajo el cursor usando coords de viewport
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      const slot = el?.closest('[data-connect-slot="true"]') as HTMLElement | null;
-      if (slot) {
-        const r = slot.getBoundingClientRect();
-        endX = r.left + r.width / 2;
-        endY = r.top + r.height / 2;
-        const slotCardId = slot.getAttribute("data-card-id");
-        if (slotCardId && slotCardId.startsWith("card-") && !resolvedByCard[slotCardId]) {
-          hovered = slotCardId;
+
+      if (hasChipOrigin) {
+        // Modo chip → card: snap a connect slot/card
+        const slot = el?.closest('[data-connect-slot="true"]') as HTMLElement | null;
+        if (slot) {
+          const r = slot.getBoundingClientRect();
+          endX = r.left + r.width / 2;
+          endY = r.top + r.height / 2;
+          const slotCardId = slot.getAttribute("data-card-id");
+          if (slotCardId && slotCardId.startsWith("card-") && !resolvedByCard[slotCardId]) {
+            hoveredCard = slotCardId;
+          }
+        } else if (el) {
+          const cardEl = el.closest('[data-card-id]') as HTMLElement | null;
+          const cardId = cardEl?.getAttribute("data-card-id") ?? null;
+          if (cardId && cardId.startsWith("card-") && !resolvedByCard[cardId]) {
+            hoveredCard = cardId;
+          }
         }
-      } else if (el) {
-        const cardEl = el.closest('[data-card-id]') as HTMLElement | null;
-        const cardId = cardEl?.getAttribute("data-card-id") ?? null;
-        if (cardId && cardId.startsWith("card-") && !resolvedByCard[cardId]) {
-          hovered = cardId;
-        }
+
+        setActiveCardId(hoveredCard);
       }
 
-      setActiveCardId(hovered);
       // Guardamos en coords de viewport (las usa directamente el SVG)
       setAimPos({ x: endX, y: endY });
     };
 
     window.addEventListener("mousemove", handleMove);
     return () => window.removeEventListener("mousemove", handleMove);
-  }, [activeChipId, resolvedByCard]);
+  }, [activeChipId, activeOriginCardId, resolvedByCard]);
 
-  // ESC cancela aiming
+  // ESC cancela aiming de chip
   useEffect(() => {
     if (!activeChipId) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -362,123 +395,170 @@ export function GameScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeChipId]);
 
-  const handleCardDrop = useCallback((cardId: string) => {
-    if (!activeChipId) return;
+  // ESC cancela aiming de card
+  useEffect(() => {
+    if (!activeOriginCardId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveOriginCardId(null);
+        setAimPos(null);
+        setActiveCardId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeOriginCardId]);
 
-    const nameId = activeChipId;
-
-    // Si la card ya está resuelta, ignorar y solo salir de aiming
-    if (resolvedByCard[cardId]) {
-      setActiveChipId(null);
-      setAimPos(null);
-      setActiveCardId(null);
-      setGameState((prev) => ({ ...prev, selectedChipId: null }));
-      return;
-    }
-
-    const chip = gameState.chips.find((c) => c.id === nameId);
-    const chipName = chip?.name;
-    const droppedCardId = cardId;
-
-    const isCorrect = chipName ? CORRECT_MAPPING[chipName] === droppedCardId : false;
-
-    // Actualizar conexiones
-    setGameState((prev) => {
-      const existingIndex = prev.connections.findIndex(
-        (c) => c.nameId === nameId
-      );
-      const newConnections = [...prev.connections];
-      if (existingIndex >= 0) {
-        newConnections[existingIndex] = { nameId, cardId: droppedCardId };
-      } else {
-        newConnections.push({ nameId, cardId: droppedCardId });
+  const resolveConnection = useCallback(
+    (nameId: string, cardId: string) => {
+      // Si la card ya está resuelta, ignorar y solo salir de aiming
+      if (resolvedByCard[cardId]) {
+        setActiveChipId(null);
+        setActiveOriginCardId(null);
+        setAimPos(null);
+        setActiveCardId(null);
+        setGameState((prev) => ({ ...prev, selectedChipId: null }));
+        return;
       }
 
-      return {
-        ...prev,
-        connections: newConnections,
-      };
-    });
+      const chip = gameState.chips.find((c) => c.id === nameId);
+      const chipName = chip?.name;
+      const droppedCardId = cardId;
 
-    if (isCorrect) {
-      playSfx("correct");
-      if (chipName) {
-        const willBeComplete =
-          Object.keys(resolvedByCard).length + 1 === gameState.cards.length;
+      const isCorrect = chipName ? CORRECT_MAPPING[chipName] === droppedCardId : false;
 
-        setResolvedByCard((prev) => ({
+      // Actualizar conexiones
+      setGameState((prev) => {
+        const existingIndex = prev.connections.findIndex(
+          (c) => c.nameId === nameId
+        );
+        const newConnections = [...prev.connections];
+        if (existingIndex >= 0) {
+          newConnections[existingIndex] = { nameId, cardId: droppedCardId };
+        } else {
+          newConnections.push({ nameId, cardId: droppedCardId });
+        }
+
+        return {
           ...prev,
-          [droppedCardId]: chipName,
-        }));
+          connections: newConnections,
+        };
+      });
 
-        setGameState((prev) => ({
+      if (isCorrect) {
+        playSfx("correct");
+        if (chipName) {
+          const willBeComplete =
+            Object.keys(resolvedByCard).length + 1 === gameState.cards.length;
+
+          setResolvedByCard((prev) => ({
+            ...prev,
+            [droppedCardId]: chipName,
+          }));
+
+          setGameState((prev) => ({
+            ...prev,
+            chips: prev.chips.filter((c) => c.id !== nameId),
+            ...(willBeComplete ? { showSuccess: true, successReason: "victory" as const } : {}),
+          }));
+
+          setCardFeedback((prev) => ({
+            ...prev,
+            [droppedCardId]: "correct",
+          }));
+
+          if (willBeComplete) {
+            playSfx("complete");
+          }
+
+          const existingTimer = correctFeedbackTimersRef.current[droppedCardId];
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+
+          const timer = setTimeout(() => {
+            setCardFeedback((prev) => ({
+              ...prev,
+              [droppedCardId]: "idle",
+            }));
+            correctFeedbackTimersRef.current[droppedCardId] = null;
+          }, CORRECT_FEEDBACK_DELAY);
+
+          correctFeedbackTimersRef.current[droppedCardId] = timer;
+        }
+      } else {
+        playSfx("incorrect");
+        setCardStatus((prev) => ({
           ...prev,
-          chips: prev.chips.filter((c) => c.id !== nameId),
-          ...(willBeComplete ? { showSuccess: true, successReason: "victory" as const } : {}),
+          [droppedCardId]: "incorrect",
         }));
 
         setCardFeedback((prev) => ({
           ...prev,
-          [droppedCardId]: "correct",
+          [droppedCardId]: "incorrect",
         }));
 
-        if (willBeComplete) {
-          playSfx("complete");
-        }
-
-        const existingTimer = correctFeedbackTimersRef.current[droppedCardId];
+        const existingTimer = resetTimersRef.current[droppedCardId];
         if (existingTimer) {
           clearTimeout(existingTimer);
         }
 
         const timer = setTimeout(() => {
+          setCardStatus((prev) => ({
+            ...prev,
+            [droppedCardId]: "idle",
+          }));
           setCardFeedback((prev) => ({
             ...prev,
             [droppedCardId]: "idle",
           }));
-          correctFeedbackTimersRef.current[droppedCardId] = null;
-        }, CORRECT_FEEDBACK_DELAY);
+          resetTimersRef.current[droppedCardId] = null;
+        }, INCORRECT_RESET_DELAY);
 
-        correctFeedbackTimersRef.current[droppedCardId] = timer;
-      }
-    } else {
-      playSfx("incorrect");
-      setCardStatus((prev) => ({
-        ...prev,
-        [droppedCardId]: "incorrect",
-      }));
-
-      setCardFeedback((prev) => ({
-        ...prev,
-        [droppedCardId]: "incorrect",
-      }));
-
-      const existingTimer = resetTimersRef.current[droppedCardId];
-      if (existingTimer) {
-        clearTimeout(existingTimer);
+        resetTimersRef.current[droppedCardId] = timer;
       }
 
-      const timer = setTimeout(() => {
-        setCardStatus((prev) => ({
-          ...prev,
-          [droppedCardId]: "idle",
-        }));
-        setCardFeedback((prev) => ({
-          ...prev,
-          [droppedCardId]: "idle",
-        }));
-        resetTimersRef.current[droppedCardId] = null;
-      }, INCORRECT_RESET_DELAY);
+      // Reset highlight/aiming
+      setActiveChipId(null);
+      setActiveOriginCardId(null);
+      setAimPos(null);
+      setActiveCardId(null);
+      setGameState((prev) => ({ ...prev, selectedChipId: null }));
+    },
+    [gameState.cards.length, gameState.chips, playSfx, resolvedByCard]
+  );
 
-      resetTimersRef.current[droppedCardId] = timer;
-    }
+  const handleCardDrop = useCallback(
+    (cardId: string) => {
+      if (activeChipId) {
+        // Modo chip → card: completar conexión
+        resolveConnection(activeChipId, cardId);
+        return;
+      }
 
-    // Reset highlight/aiming
-    setActiveChipId(null);
-    setAimPos(null);
-    setActiveCardId(null);
-    setGameState((prev) => ({ ...prev, selectedChipId: null }));
-  }, [activeChipId, gameState.cards.length, gameState.chips, playSfx, resolvedByCard]);
+      // Modo card → chip: click en card para activar / desactivar origen
+      if (resolvedByCard[cardId]) {
+        return;
+      }
+
+      if (activeOriginCardId === cardId) {
+        // Toggle off
+        setActiveOriginCardId(null);
+        setAimPos(null);
+        setActiveCardId(null);
+        return;
+      }
+
+      // Activar origen en esta card y desactivar cualquier chip
+      setActiveChipId(null);
+      setActiveOriginCardId(cardId);
+      setAimPos(null);
+      setActiveCardId(null);
+      setGameState((prev) => ({ ...prev, selectedChipId: null }));
+      playSfx("drag");
+    },
+    [activeChipId, activeOriginCardId, playSfx, resolveConnection, resolvedByCard]
+  );
 
   const handleRevealAnswers = () => {
     setMode("reveal");
@@ -573,7 +653,7 @@ export function GameScreen({
   const connectedCount = Object.keys(resolvedByCard).length;
   const totalCards = gameState.cards.length;
 
-  // Origen de la flecha (chip seleccionado)
+  // Origen de la flecha (chip seleccionado o card seleccionada)
   let arrowOrigin: { x: number; y: number } | null = null;
   if (activeChipId) {
     const chipEl = chipRefs.current.get(activeChipId);
@@ -582,6 +662,15 @@ export function GameScreen({
       arrowOrigin = {
         x: r.left + r.width / 2,
         y: r.top,
+      };
+    }
+  } else if (activeOriginCardId) {
+    const slotEl = connectSlotsRef.current.get(activeOriginCardId);
+    if (slotEl) {
+      const r = slotEl.getBoundingClientRect();
+      arrowOrigin = {
+        x: r.left + r.width / 2,
+        y: r.top + r.height / 2,
       };
     }
   }
@@ -661,12 +750,14 @@ export function GameScreen({
                     onCardDrop={handleCardDrop}
                     connectSlotRef={registerConnectSlot}
                     animateMount={mode === "play"}
+                    showSlotArrow={!activeChipId}
+                    activeOriginCardId={activeOriginCardId}
                   />
                 </div>
 
                 {/* Ocultar ChipRow en reveal mode */}
                 {mode !== "reveal" && (
-                  <div style={{ marginTop: "78px" }}>
+                  <div ref={chipsContainerRef} style={{ marginTop: "120px" }}>
                     <ChipRow
                       chips={gameState.chips}
                       hoveredNameId={gameState.hoveredNameId}
@@ -675,6 +766,8 @@ export function GameScreen({
                       onChipHover={handleChipHover}
                       onChipClick={handleChipClick}
                       chipRef={registerChipRef}
+                      hideChipArrows={!!activeOriginCardId}
+                      activeChipId={activeChipId}
                     />
                   </div>
                 )}
@@ -754,7 +847,7 @@ export function GameScreen({
         )}
 
         {/* Flecha en modo aiming: chip seleccionado + cursor */}
-        {mode === "play" && activeChipId && aimPos && arrowOrigin && (
+        {mode === "play" && (activeChipId || activeOriginCardId) && aimPos && arrowOrigin && (
           <DragArrowOverlay
             originX={arrowOrigin.x}
             originY={arrowOrigin.y}

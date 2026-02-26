@@ -1,17 +1,20 @@
 interface ConnectorArrowProps {
   height?: number;
   isDragging?: boolean;
+  /** Opacidad del trazo (default 1). Idle = 0.2, activa = 1 */
+  opacity?: number;
 }
 
 const DEFAULT_HEIGHT = 32;
 const ARROW_WIDTH = 24;
 const STROKE_WIDTH = 4;
-/** Flechas SIEMPRE blanco 100% en rest y en drag */
+/** Flechas SIEMPRE blanco; la intensidad se controla con opacity */
 const ARROW_COLOR = "#FFFFFF";
 
 export function ConnectorArrow({
   height = DEFAULT_HEIGHT,
   isDragging = false,
+  opacity = 1,
 }: ConnectorArrowProps) {
   const clampedHeight = Math.max(height, STROKE_WIDTH * 2);
 
@@ -32,7 +35,7 @@ export function ConnectorArrow({
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
-        style={{ opacity: 1 }}
+        style={{ opacity }}
       >
         <line
           x1={ARROW_WIDTH / 2}
