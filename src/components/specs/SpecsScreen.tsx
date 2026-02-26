@@ -234,7 +234,7 @@ export function SpecsScreen({
             >
               <GamePrimaryButton
                 onClick={onContinue}
-                disabled={selectedOptions.length !== 3}
+                disabled={selectedOptions.length < 1}
               >
                 Continue
               </GamePrimaryButton>

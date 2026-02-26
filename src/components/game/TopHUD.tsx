@@ -10,6 +10,8 @@ interface TopHUDProps {
   elapsedSeconds: number;
   isMuted: boolean;
   mode?: GameMode;
+  /** Segundos restantes por debajo de los cuales el reloj se pone en rojo (default 20) */
+  lowTimeThreshold?: number;
   connectedCount?: number;
   totalCards?: number;
   onPauseClick: () => void;
@@ -21,11 +23,14 @@ export function TopHUD({
   elapsedSeconds,
   isMuted,
   mode = "play",
+  lowTimeThreshold = 20,
   connectedCount = 0,
   totalCards = 4,
   onPauseClick,
   onMuteToggle,
 }: TopHUDProps) {
+  const isLowTime = mode === "play" && elapsedSeconds <= lowTimeThreshold;
+
   return (
     <div className="relative z-10 w-full flex items-center py-4 px-6">
       {/* LEFT - Lives (oculto en reveal mode) */}
@@ -41,6 +46,7 @@ export function TopHUD({
           value={elapsedSeconds}
           formatAsTime
           showRevealIcon={mode === "reveal"}
+          isLowTime={isLowTime}
         />
       </div>
 

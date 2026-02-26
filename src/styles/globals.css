@@ -199,8 +199,9 @@ body {
 .game-chip-enter {
   animation: game-chip-enter 350ms ease-out 250ms both;
 }
+/* Overlay correcto/incorrecto: sin animación (instantáneo) */
 .game-overlay-fade-in {
-  animation: game-overlay-fade-in 200ms ease-out both;
+  animation: game-overlay-fade-in 0ms ease-out both;
 }
 .game-overlay-fade-out {
   animation: game-overlay-fade-in 400ms ease-out reverse both;
@@ -360,6 +361,29 @@ body {
   outline-offset: 2px;
 }
 
+/* Timer en modo “poco tiempo” (≤20s): pulso + shake sutil de urgencia */
+@keyframes game-timer-low-pulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 4px rgba(220, 53, 69, 0.9), 0 0 12px rgba(220, 53, 69, 0.4);
+    transform: scale(1) translateX(0);
+  }
+  25% {
+    transform: scale(1.02) translateX(-2px);
+  }
+  50% {
+    box-shadow: inset 0 0 0 4px rgba(220, 53, 69, 1), 0 0 20px rgba(220, 53, 69, 0.7);
+    transform: scale(1.04) translateX(2px);
+  }
+  75% {
+    transform: scale(1.02) translateX(-1px);
+  }
+}
+
+.game-timer-low {
+  animation: game-timer-low-pulse 1.2s ease-in-out infinite;
+}
+
 /* Respetar prefers-reduced-motion: desactivar animaciones */
 @media (prefers-reduced-motion: reduce) {
   .game-title-enter,
@@ -367,6 +391,7 @@ body {
   .game-chip-enter,
   .game-overlay-fade-in,
   .game-nametag-enter,
+  .game-timer-low,
   .game-breathe,
   .game-halo-1,
   .game-halo-2,

@@ -4,6 +4,8 @@ interface TimerProps {
   value: number;
   formatAsTime?: boolean;
   showRevealIcon?: boolean;
+  /** Cuando true (p. ej. ≤20s restantes), círculo rojo y pulso de alerta */
+  isLowTime?: boolean;
 }
 
 const TIMER_SIZE = 60;
@@ -19,11 +21,14 @@ export function Timer({
   value,
   formatAsTime = false,
   showRevealIcon = false,
+  isLowTime = false,
 }: TimerProps) {
   const display = formatAsTime ? formatMmSs(value) : String(value);
 
   return (
     <div
+      className={isLowTime ? "game-timer-low" : undefined}
+      data-low-time={isLowTime ? "true" : undefined}
       style={{
         width: `${TIMER_SIZE}px`,
         height: `${TIMER_SIZE}px`,
@@ -31,7 +36,16 @@ export function Timer({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "inset 0 0 0 4px rgba(255, 255, 255, 0.10)",
+        ...(isLowTime
+          ? {
+              backgroundColor: "rgba(220, 53, 69, 0.45)",
+              border: "2px solid rgba(220, 53, 69, 1)",
+              boxShadow:
+                "inset 0 0 0 2px rgba(220, 53, 69, 0.6), 0 0 20px rgba(220, 53, 69, 0.6)",
+            }
+          : {
+              boxShadow: "inset 0 0 0 4px rgba(255, 255, 255, 0.10)",
+            }),
       }}
       aria-label={showRevealIcon ? "Reveal mode" : `Time: ${display}`}
     >
@@ -49,7 +63,8 @@ export function Timer({
             fontFamily: "var(--font-bitter), serif",
             fontWeight: 600,
             fontSize: "24px",
-            color: "#FFFFFF",
+            color: isLowTime ? "#FF6B6B" : "#FFFFFF",
+            textShadow: isLowTime ? "0 0 12px rgba(255, 100, 100, 0.9)" : "none",
           }}
         >
           {display}

@@ -55,97 +55,109 @@ export function GameCard({
         height: `${CARD_SIZE}px`,
       }}
     >
-      <Image
-        src={imageSrc}
-        alt={alt}
-        width={CARD_SIZE}
-        height={CARD_SIZE}
+      {/* Contenedor solo de la foto: imagen + overlays correcto/incorrecto. El círculo (connect slot) queda fuera y por encima. */}
+      <div
+        className="relative"
         style={{
           width: `${CARD_SIZE}px`,
           height: `${CARD_SIZE}px`,
           borderRadius: `${CARD_RADIUS}px`,
-          objectFit: "cover",
-          display: "block",
+          overflow: "hidden",
+          zIndex: 0,
         }}
-      />
+      >
+        <Image
+          src={imageSrc}
+          alt={alt}
+          width={CARD_SIZE}
+          height={CARD_SIZE}
+          style={{
+            width: `${CARD_SIZE}px`,
+            height: `${CARD_SIZE}px`,
+            borderRadius: `${CARD_RADIUS}px`,
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
 
-      {/* Overlay de estado incorrecto (fade-in suave) */}
-      {isIncorrect && (
-        <>
-          <div
-            className="game-overlay-fade-in absolute inset-0 pointer-events-none"
-            style={{
-              borderRadius: `${CARD_RADIUS}px`,
-              border: "1px solid #F6743E",
-              background: "rgba(212, 37, 37, 0.10)",
-              boxShadow: "0 0 84px 0 #D42525 inset",
-              zIndex: 1,
-            }}
-          />
-          <div
-            className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
-            style={{
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: `${INCORRECT_ICON_SIZE}px`,
-              height: `${INCORRECT_ICON_SIZE}px`,
-              zIndex: 2,
-            }}
-          >
-            <Image
-              src="/assets/incorrect-icon.png"
-              alt=""
-              width={INCORRECT_ICON_SIZE}
-              height={INCORRECT_ICON_SIZE}
+        {/* Overlay de estado incorrecto (fade-in suave); solo sobre la foto, por detrás del círculo */}
+        {isIncorrect && (
+          <>
+            <div
+              className="game-overlay-fade-in absolute inset-0 pointer-events-none"
               style={{
+                borderRadius: `${CARD_RADIUS}px`,
+                border: "1px solid #F6743E",
+                background: "rgba(212, 37, 37, 0.10)",
+                boxShadow: "0 0 84px 0 #D42525 inset",
+                zIndex: 1,
+              }}
+            />
+            <div
+              className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
+              style={{
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
                 width: `${INCORRECT_ICON_SIZE}px`,
                 height: `${INCORRECT_ICON_SIZE}px`,
-                display: "block",
+                zIndex: 2,
+              }}
+            >
+              <Image
+                src="/assets/incorrect-icon.png"
+                alt=""
+                width={INCORRECT_ICON_SIZE}
+                height={INCORRECT_ICON_SIZE}
+                style={{
+                  width: `${INCORRECT_ICON_SIZE}px`,
+                  height: `${INCORRECT_ICON_SIZE}px`,
+                  display: "block",
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Overlay de estado correcto (feedback temporal, fade-in suave); solo sobre la foto, por detrás del círculo */}
+        {isCorrectFeedback && (
+          <>
+            <div
+              className="game-overlay-fade-in absolute inset-0 pointer-events-none"
+              style={{
+                borderRadius: `${CARD_RADIUS}px`,
+                border: "1px solid rgba(0, 142, 65, 0.40)",
+                background: "rgba(0, 142, 65, 0.10)",
+                boxShadow: "0 0 84px 0 #32BB71 inset",
+                zIndex: 1,
               }}
             />
-          </div>
-        </>
-      )}
-
-      {/* Overlay de estado correcto (feedback temporal, fade-in suave) */}
-      {isCorrectFeedback && (
-        <>
-          <div
-            className="game-overlay-fade-in absolute inset-0 pointer-events-none"
-            style={{
-              borderRadius: `${CARD_RADIUS}px`,
-              border: "1px solid rgba(0, 142, 65, 0.40)",
-              background: "rgba(0, 142, 65, 0.10)",
-              boxShadow: "0 0 84px 0 #32BB71 inset",
-              zIndex: 1,
-            }}
-          />
-          <div
-            className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
-            style={{
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: `${CORRECT_ICON_SIZE}px`,
-              height: `${CORRECT_ICON_SIZE}px`,
-              zIndex: 2,
-            }}
-          >
-            <Image
-              src="/assets/correct-icon.png"
-              alt=""
-              width={CORRECT_ICON_SIZE}
-              height={CORRECT_ICON_SIZE}
+            <div
+              className="game-overlay-fade-in absolute pointer-events-none flex items-center justify-center"
               style={{
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
                 width: `${CORRECT_ICON_SIZE}px`,
                 height: `${CORRECT_ICON_SIZE}px`,
-                display: "block",
+                zIndex: 2,
               }}
-            />
-          </div>
-        </>
-      )}
+            >
+              <Image
+                src="/assets/correct-icon.png"
+                alt=""
+                width={CORRECT_ICON_SIZE}
+                height={CORRECT_ICON_SIZE}
+                style={{
+                  width: `${CORRECT_ICON_SIZE}px`,
+                  height: `${CORRECT_ICON_SIZE}px`,
+                  display: "block",
+                }}
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {isResolved ? (
         /* NameTag cuando la card está resuelta (aparición suave) */

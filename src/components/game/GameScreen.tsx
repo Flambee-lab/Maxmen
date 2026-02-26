@@ -10,7 +10,6 @@ import { CardStage } from "./CardStage";
 import { ChipRow } from "./ChipRow";
 import { RevealAnswersButton } from "./RevealAnswersButton";
 import { PauseMenu } from "./PauseMenu";
-import { SuccessScreen } from "./SuccessScreen";
 import { DragArrowOverlay } from "./DragArrowOverlay";
 import { GamePrimaryButton } from "./GamePrimaryButton";
 import Image from "next/image";
@@ -48,12 +47,16 @@ const CORRECT_MAPPING: Record<string, string> = {
   Justine: "card-4",
 };
 
-const INCORRECT_RESET_DELAY = 5000; // 5 segundos
-const CORRECT_FEEDBACK_DELAY = 5000; // 5 segundos
-
 const MUTED_STORAGE_KEY = "maxman_sound_muted";
 const BG_VOLUME = 0.075; // música ambiental baja
 const SFX_VOLUME = 0.55; // SFX claramente por encima de la música
+/** Duración en ms del overlay correcto/incorrecto sobre la card antes de volver a idle */
+const FEEDBACK_OVERLAY_MS = 800;
+
+/** Por debajo de estos segundos restantes el reloj se pone rojo y suena la alerta */
+const LOW_TIME_THRESHOLD = 20;
+/** Countdown inicial: siempre 2:00. El warning (rojo, animación, tick) solo se activa cuando quedan ≤20s. */
+const INITIAL_COUNTDOWN_SECONDS = 120;
 
 /** Crea o reanuda el AudioContext en el primer gesto del usuario */
 async function getAudioContext(audioContextRef: React.MutableRefObject<AudioContext | null>): Promise<AudioContext | null> {
@@ -116,6 +119,26 @@ function playFallbackSfx(
   });
 }
 
+/** Beep corto de countdown (≤20s): más fuerte que el lofi, para tick cada segundo */
+function playTickSfx(
+  audioContextRef: React.MutableRefObject<AudioContext | null>
+) {
+  getAudioContext(audioContextRef).then((ctx) => {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 520;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  });
+}
+
 export function GameScreen({
   skipBackground = false,
   isMuted,
@@ -131,8 +154,6 @@ export function GameScreen({
   const chipRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const canvasRef = useRef<HTMLDivElement>(null);
   const chipsContainerRef = useRef<HTMLDivElement>(null);
-  const resetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
-  const correctFeedbackTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   const bgAudioRef = useRef<HTMLAudioElement | null>(null);
   const fallbackBgStopRef = useRef<(() => void) | null>(null);
@@ -141,6 +162,9 @@ export function GameScreen({
   const sfxRefs = useRef<Record<string, HTMLAudioElement>>({});
   const mutedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const lowTimeAlertPlayedRef = useRef(false);
+  const feedbackResetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const feedbackCorrectTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
 
   const [gameState, setGameState] = useState<GameState>(() => {
     let isMuted = false;
@@ -167,7 +191,7 @@ export function GameScreen({
     };
   });
 
-  const [remainingSeconds, setRemainingSeconds] = useState(2 * 60); // Countdown 2:00 → 0:00
+  const [remainingSeconds, setRemainingSeconds] = useState(INITIAL_COUNTDOWN_SECONDS); // Countdown → 0:00
   const [showCardsAndChips, setShowCardsAndChips] = useState(false);
   const [activeChipId, setActiveChipId] = useState<string | null>(null);
   const [activeOriginCardId, setActiveOriginCardId] = useState<string | null>(null);
@@ -293,22 +317,6 @@ export function GameScreen({
     },
     []
   );
-
-  // Cleanup: limpiar todos los timeouts pendientes al desmontar
-  useEffect(() => {
-    return () => {
-      Object.values(resetTimersRef.current).forEach((timer) => {
-        if (timer) {
-          clearTimeout(timer);
-        }
-      });
-      Object.values(correctFeedbackTimersRef.current).forEach((timer) => {
-        if (timer) {
-          clearTimeout(timer);
-        }
-      });
-    };
-  }, []);
 
   // Mousemove global mientras hay origen activo (chip → card o card → chip): actualizar endpoint de la flecha (aimPos)
   useEffect(() => {
@@ -462,60 +470,31 @@ export function GameScreen({
             ...(willBeComplete ? { showSuccess: true, successReason: "victory" as const } : {}),
           }));
 
-          setCardFeedback((prev) => ({
-            ...prev,
-            [droppedCardId]: "correct",
-          }));
+          setCardFeedback((prev) => ({ ...prev, [droppedCardId]: "correct" }));
+
+          const existing = feedbackCorrectTimersRef.current[droppedCardId];
+          if (existing) clearTimeout(existing);
+          feedbackCorrectTimersRef.current[droppedCardId] = setTimeout(() => {
+            setCardFeedback((prev) => ({ ...prev, [droppedCardId]: "idle" }));
+            feedbackCorrectTimersRef.current[droppedCardId] = null;
+          }, FEEDBACK_OVERLAY_MS);
 
           if (willBeComplete) {
             playSfx("complete");
           }
-
-          const existingTimer = correctFeedbackTimersRef.current[droppedCardId];
-          if (existingTimer) {
-            clearTimeout(existingTimer);
-          }
-
-          const timer = setTimeout(() => {
-            setCardFeedback((prev) => ({
-              ...prev,
-              [droppedCardId]: "idle",
-            }));
-            correctFeedbackTimersRef.current[droppedCardId] = null;
-          }, CORRECT_FEEDBACK_DELAY);
-
-          correctFeedbackTimersRef.current[droppedCardId] = timer;
         }
       } else {
         playSfx("incorrect");
-        setCardStatus((prev) => ({
-          ...prev,
-          [droppedCardId]: "incorrect",
-        }));
+        setCardStatus((prev) => ({ ...prev, [droppedCardId]: "incorrect" }));
+        setCardFeedback((prev) => ({ ...prev, [droppedCardId]: "incorrect" }));
 
-        setCardFeedback((prev) => ({
-          ...prev,
-          [droppedCardId]: "incorrect",
-        }));
-
-        const existingTimer = resetTimersRef.current[droppedCardId];
-        if (existingTimer) {
-          clearTimeout(existingTimer);
-        }
-
-        const timer = setTimeout(() => {
-          setCardStatus((prev) => ({
-            ...prev,
-            [droppedCardId]: "idle",
-          }));
-          setCardFeedback((prev) => ({
-            ...prev,
-            [droppedCardId]: "idle",
-          }));
-          resetTimersRef.current[droppedCardId] = null;
-        }, INCORRECT_RESET_DELAY);
-
-        resetTimersRef.current[droppedCardId] = timer;
+        const existing = feedbackResetTimersRef.current[droppedCardId];
+        if (existing) clearTimeout(existing);
+        feedbackResetTimersRef.current[droppedCardId] = setTimeout(() => {
+          setCardStatus((prev) => ({ ...prev, [droppedCardId]: "idle" }));
+          setCardFeedback((prev) => ({ ...prev, [droppedCardId]: "idle" }));
+          feedbackResetTimersRef.current[droppedCardId] = null;
+        }, FEEDBACK_OVERLAY_MS);
       }
 
       // Reset highlight/aiming
@@ -565,26 +544,25 @@ export function GameScreen({
   };
 
   const handleRestart = () => {
-    // Resetear todos los estados del juego
+    // Limpiar timers de feedback overlay
+    Object.values(feedbackResetTimersRef.current).forEach((t) => {
+      if (t) clearTimeout(t);
+    });
+    Object.values(feedbackCorrectTimersRef.current).forEach((t) => {
+      if (t) clearTimeout(t);
+    });
+    feedbackResetTimersRef.current = {};
+    feedbackCorrectTimersRef.current = {};
+
     setResolvedByCard({});
     setCardFeedback({});
     setCardStatus({});
     setActiveCardId(null);
     setActiveChipId(null);
     setAimPos(null);
-    
-    // Limpiar todos los timers
-    Object.values(resetTimersRef.current).forEach((timer) => {
-      if (timer) clearTimeout(timer);
-    });
-    Object.values(correctFeedbackTimersRef.current).forEach((timer) => {
-      if (timer) clearTimeout(timer);
-    });
-    resetTimersRef.current = {};
-    correctFeedbackTimersRef.current = {};
 
     // Volver a modo play y resetear timer countdown
-    setRemainingSeconds(2 * 60);
+    setRemainingSeconds(INITIAL_COUNTDOWN_SECONDS);
     setMode("play");
     setGameState((prev) => ({
       ...prev,
@@ -605,14 +583,14 @@ export function GameScreen({
   // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
   const isGameComplete = gameState.chips.length === 0;
 
-  // Timer countdown: 2:00 → 0:00, cada segundo en play mode (pausa cuando isPaused)
+  // Timer countdown: 2:00 → 0:00, cada segundo en play mode (se detiene en pausa o en pantalla final)
   useEffect(() => {
-    if (mode !== "play" || isPaused) return;
+    if (mode !== "play" || isPaused || gameState.showSuccess) return;
     const interval = setInterval(() => {
       setRemainingSeconds((s) => (s <= 0 ? 0 : s - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [mode, isPaused]);
+  }, [mode, isPaused, gameState.showSuccess]);
 
   // Al llegar a 0:00 → pantalla final por tiempo agotado (sin tocar victoria por conexión)
   useEffect(() => {
@@ -622,13 +600,74 @@ export function GameScreen({
     }
   }, [mode, isPaused, remainingSeconds]);
 
+  // Al cruzar a ≤20s: tick de countdown cada segundo hasta 0; para si termina el juego o llega a 0
+  useEffect(() => {
+    const inLowTime =
+      mode === "play" &&
+      !isPaused &&
+      !gameState.showSuccess &&
+      remainingSeconds <= LOW_TIME_THRESHOLD &&
+      remainingSeconds > 0;
+    const muted = typeof isMuted === "boolean" ? isMuted : gameState.isMuted;
+
+    if (!inLowTime) {
+      lowTimeAlertPlayedRef.current = false;
+      return;
+    }
+
+    if (muted) return;
+
+    // Un tick por cada segundo que estamos en low-time (el effect corre cada vez que remainingSeconds baja)
+    playTickSfx(audioContextRef);
+    lowTimeAlertPlayedRef.current = true;
+  }, [mode, isPaused, remainingSeconds, gameState.showSuccess, gameState.isMuted, isMuted]);
+
   // En reveal mode, crear resolvedByCard automático usando CORRECT_MAPPING
-  const revealResolvedByCard = mode === "reveal" 
+  const revealResolvedByCard = mode === "reveal"
     ? Object.entries(CORRECT_MAPPING).reduce((acc, [chipName, cardId]) => {
         acc[cardId] = chipName;
         return acc;
       }, {} as Record<string, string>)
     : resolvedByCard;
+
+  // Endgame por tiempo: misma UI que el juego; contenido dinámico según progreso real (solo uniones pendientes)
+  const isTimeUpEndgame = !!(
+    gameState.showSuccess && gameState.successReason === "timeUp"
+  );
+  const timeUpRemainingCards = gameState.cards.filter(
+    (c) => !resolvedByCard[c.id]
+  );
+  const timeUpResolvedByCard = (() => {
+    const acc: Record<string, string> = {};
+    const remainingIds = new Set(timeUpRemainingCards.map((c) => c.id));
+    for (const [chipName, cardId] of Object.entries(CORRECT_MAPPING)) {
+      if (remainingIds.has(cardId)) acc[cardId] = chipName;
+    }
+    return acc;
+  })();
+  const cardsForDisplay = isTimeUpEndgame
+    ? timeUpRemainingCards
+    : gameState.cards;
+
+  // Pantalla final por éxito (todas correctas): mismo layout que time's up; todas las cards con nombres correctos
+  const isSuccessEndgame = !!(
+    gameState.showSuccess && gameState.successReason === "victory"
+  );
+  const successResolvedByCard = Object.entries(CORRECT_MAPPING).reduce(
+    (acc, [chipName, cardId]) => {
+      acc[cardId] = chipName;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+  const resolvedByCardForDisplay = isTimeUpEndgame
+    ? timeUpResolvedByCard
+    : isSuccessEndgame
+      ? successResolvedByCard
+      : mode === "reveal"
+        ? revealResolvedByCard
+        : resolvedByCard;
+  const isFinalScreen = isTimeUpEndgame || isSuccessEndgame;
 
   // Cerrar pausa con tecla Escape
   useEffect(() => {
@@ -649,6 +688,20 @@ export function GameScreen({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isPaused]);
+
+  // Cleanup: cancelar timers de feedback overlay al desmontar
+  useEffect(() => {
+    return () => {
+      Object.values(feedbackResetTimersRef.current).forEach((t) => {
+        if (t) clearTimeout(t);
+      });
+      Object.values(feedbackCorrectTimersRef.current).forEach((t) => {
+        if (t) clearTimeout(t);
+      });
+      feedbackResetTimersRef.current = {};
+      feedbackCorrectTimersRef.current = {};
+    };
+  }, []);
 
   const connectedCount = Object.keys(resolvedByCard).length;
   const totalCards = gameState.cards.length;
@@ -675,28 +728,14 @@ export function GameScreen({
     }
   }
 
-  // Pantalla final (victoria o time's up): return después de todos los hooks para no romper reglas de hooks
-  if (gameState.showSuccess) {
-    const title =
-      gameState.successReason === "timeUp"
-        ? "Endgame – Time's Up"
-        : "¡Respuestas Correctas!";
-    return (
-      <SuccessScreen
-        connections={gameState.connections}
-        cards={gameState.cards}
-        chips={gameState.chips}
-        title={title}
-      />
-    );
-  }
-
+  // Pantallas finales (éxito y time's up) usan el mismo layout en GameScreen; ya no se usa SuccessScreen.
+  // (SuccessScreen queda por si se reutiliza en otra ruta.)
   return (
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
 
       {/* Capa “respiración” muy sutil (solo play; reduced-motion la desactiva en CSS) */}
-      {mode === "play" && (
+      {mode === "play" && !isFinalScreen && (
         <div
           className="game-breathe absolute inset-0 pointer-events-none"
           style={{
@@ -706,20 +745,45 @@ export function GameScreen({
         />
       )}
 
-      {/* Contenedor del juego: se bloquea mientras está en pausa o en reveal mode */}
-      <div style={isPaused || mode === "reveal" ? { pointerEvents: "none" } : undefined}>
+      {/* Contenedor del juego: se bloquea en pausa, reveal o pantallas finales (success / time's up) */}
+      <div style={isPaused || mode === "reveal" || isFinalScreen ? { pointerEvents: "none" } : undefined}>
         <div className="relative z-10 min-h-screen">
           <TopHUD
             lives={gameState.lives}
             elapsedSeconds={remainingSeconds}
             isMuted={effectiveIsMuted}
             mode={mode}
+            lowTimeThreshold={LOW_TIME_THRESHOLD}
             onPauseClick={handleTogglePause}
             onMuteToggle={handleMuteToggle}
           />
 
           <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
-            {mode === "reveal" ? (
+            {isTimeUpEndgame ? (
+              <p
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 700,
+                  fontSize: "32px",
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                }}
+              >
+                Endgame – Time&apos;s Up
+              </p>
+            ) : isSuccessEndgame ? (
+              <p
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 700,
+                  fontSize: "32px",
+                  color: "#FFFFFF",
+                  textAlign: "center",
+                }}
+              >
+                You completed the game!
+              </p>
+            ) : mode === "reveal" ? (
               <p
                 style={{
                   fontFamily: "var(--font-bitter), serif",
@@ -741,10 +805,10 @@ export function GameScreen({
                 {/* Cards sin overflow-hidden: slot y hover pueden salir del borde */}
                 <div ref={canvasRef} style={{ marginTop: "58px" }}>
                   <CardStage
-                    cards={gameState.cards}
-                    highlightedCardId={mode === "reveal" ? null : activeCardId}
+                    cards={cardsForDisplay}
+                    highlightedCardId={mode === "reveal" || isFinalScreen ? null : activeCardId}
                     cardStatus={cardStatus}
-                    resolvedByCard={revealResolvedByCard}
+                    resolvedByCard={resolvedByCardForDisplay}
                     cardFeedback={cardFeedback}
                     onCardHover={() => {}}
                     onCardDrop={handleCardDrop}
@@ -755,8 +819,8 @@ export function GameScreen({
                   />
                 </div>
 
-                {/* Ocultar ChipRow en reveal mode */}
-                {mode !== "reveal" && (
+                {/* Ocultar ChipRow en reveal y en pantallas finales (success / time's up) */}
+                {mode !== "reveal" && !isFinalScreen && (
                   <div ref={chipsContainerRef} style={{ marginTop: "120px" }}>
                     <ChipRow
                       chips={gameState.chips}
@@ -776,8 +840,23 @@ export function GameScreen({
           </main>
         </div>
 
-        {/* Botones del bottom según el modo */}
-        {mode === "reveal" ? (
+        {/* Botones del bottom: pantallas finales = solo Continue con +32px padding bottom */}
+        {isFinalScreen ? (
+          <div
+            className="absolute left-1/2"
+            style={{
+              bottom: 0,
+              transform: "translateX(-50%)",
+              pointerEvents: "auto",
+              zIndex: 20,
+              paddingBottom: "32px",
+            }}
+          >
+            <GamePrimaryButton onClick={handleRestart}>
+              Continue
+            </GamePrimaryButton>
+          </div>
+        ) : mode === "reveal" ? (
           /* En reveal mode: Close game (izq) + Restart (der) - fuera del bloqueo de pointer-events */
           <div
             className="absolute left-1/2 flex items-center gap-4"
