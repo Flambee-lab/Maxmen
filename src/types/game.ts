@@ -37,4 +37,6 @@ export interface GameState {
   chips: NameChip[];
   connections: Array<{ nameId: string; cardId: string }>;
   showSuccess: boolean;
+  /** Si showSuccess es por tiempo agotado (time's up) en lugar de victoria */
+  successReason?: "victory" | "timeUp";
 }

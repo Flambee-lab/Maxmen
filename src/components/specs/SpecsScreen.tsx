@@ -39,7 +39,7 @@ export function SpecsScreen({
   onMuteToggle = () => {},
 }: SpecsScreenProps) {
   const router = useRouter();
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
 
   return (
     <>
@@ -116,13 +116,29 @@ export function SpecsScreen({
               alignItems: "center",
             }}
           >
-            {SPECS_OPTIONS.map((opt) => (
-              <SpecsOption
+            {SPECS_OPTIONS.map((opt, index) => (
+              <div
                 key={opt.id}
-                label={opt.label}
-                selected={selectedOption === opt.label}
-                onClick={() => setSelectedOption(opt.label)}
-              />
+                className="specs-option-enter"
+                style={{ animationDelay: `${index * 70}ms` }}
+              >
+                <SpecsOption
+                  label={opt.label}
+                  selected={selectedOptions.includes(opt.label)}
+                  onClick={() => {
+                    setSelectedOptions((prev) => {
+                      const isSelected = prev.includes(opt.label);
+                      if (isSelected) {
+                        return prev.filter((label) => label !== opt.label);
+                      }
+                      if (prev.length >= 3) {
+                        return prev;
+                      }
+                      return [...prev, opt.label];
+                    });
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -147,12 +163,14 @@ export function SpecsScreen({
             >
               <div
                 style={{
+                  position: "relative",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "flex-start",
                   gap: "16px",
                 }}
               >
+                <div className="specs-tip-halo" aria-hidden="true" />
                 <div
                   style={{
                     width: "100px",
@@ -214,7 +232,10 @@ export function SpecsScreen({
                 transform: "translateY(-50%) translateY(-4px)",
               }}
             >
-              <GamePrimaryButton onClick={onContinue}>
+              <GamePrimaryButton
+                onClick={onContinue}
+                disabled={selectedOptions.length !== 3}
+              >
                 Continue
               </GamePrimaryButton>
             </div>

@@ -7,6 +7,7 @@ import { Background } from "@/components/game/Background";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { IntroIllustrationSvg } from "@/components/intro/IntroIllustrationSvg";
 
 interface GameDescriptionScreenProps {
   highScore?: number;
@@ -41,7 +42,7 @@ export function GameDescriptionScreen({
 
   const content = (
     <>
-      <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden">
+      <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden intro-screen-enter">
         {/* Top Right Icons - Same position as TopHUD */}
         <div
           className="absolute right-6 z-20"
@@ -58,20 +59,11 @@ export function GameDescriptionScreen({
 
         {/* Contenedor principal centrado - sin scroll */}
         <main className="w-full flex flex-col items-center justify-center max-w-2xl py-8">
-          {/* Game Concept Illustration - centrada en viewport */}
-          <div className="w-full flex items-center justify-center">
-            <Image
-              src="/intro/concept.png"
-              alt="Game concept illustration"
-              width={312}
-              height={180}
-              style={{
-                width: "312px",
-                height: "180px",
-                objectFit: "contain",
-                display: "block",
-              }}
-              priority
+          {/* Game Concept Illustration - centrada en viewport (SVG inline para poder interactuar con elementos) */}
+          <div className="w-full flex items-center justify-center" style={{ width: "312px", height: "180px" }}>
+            <IntroIllustrationSvg
+              className="block"
+              style={{ width: "312px", height: "180px", objectFit: "contain" }}
             />
           </div>
 

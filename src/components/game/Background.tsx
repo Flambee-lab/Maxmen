@@ -16,9 +16,9 @@ export function Background() {
       {/* Halos blancos blur, animación muy suave (detrás del aro) */}
       <BackgroundHalos />
 
-      {/* Aro de luz */}
+      {/* Aro de luz — gira lentamente para dar sensación de luz en movimiento */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border"
+        className="absolute top-1/2 left-1/2 rounded-full border bg-ring-spin"
         style={{
           width: `${RING_OVERSIZE_FACTOR * 100}vmax`,
           height: `${RING_OVERSIZE_FACTOR * 100}vmax`,

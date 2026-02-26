@@ -27,8 +27,8 @@ export function SoundButton({ isMuted, onClick }: SoundButtonProps) {
       aria-label={isMuted ? "Unmute" : "Mute"}
     >
       <Image
-        src="/assets/speaker.png"
-        alt="Sound"
+        src={isMuted ? "/assets/speaker-off.png" : "/assets/speaker.png"}
+        alt=""
         width={ICON_SIZE}
         height={ICON_SIZE}
       />

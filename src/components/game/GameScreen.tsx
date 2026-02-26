@@ -28,6 +28,10 @@ type GameMode = "play" | "reveal";
 interface GameScreenProps {
   /** Si true, no renderiza Background (lo provee GameContainer) */
   skipBackground?: boolean;
+  /** Estado global de mute proveniente de GamePage (opcional) */
+  isMuted?: boolean;
+  /** Toggle global de mute (opcional); si no se pasa, usa estado interno */
+  onMuteToggle?: () => void;
 }
 
 /** Mapping correcto: chipName -> cardId */
@@ -112,7 +116,11 @@ function playFallbackSfx(
   });
 }
 
-export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
+export function GameScreen({
+  skipBackground = false,
+  isMuted,
+  onMuteToggle,
+}: GameScreenProps = {}) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [cardStatus, setCardStatus] = useState<Record<string, "correct" | "incorrect" | "idle">>({});
   const [resolvedByCard, setResolvedByCard] = useState<Record<string, string>>({}); // cardId -> chipName
@@ -154,63 +162,27 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
       chips: mockChips,
       connections: [],
       showSuccess: false,
+      successReason: undefined,
     };
   });
 
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState(2 * 60); // Countdown 2:00 → 0:00
   const [showCardsAndChips, setShowCardsAndChips] = useState(false);
   const [activeChipId, setActiveChipId] = useState<string | null>(null);
   const [aimPos, setAimPos] = useState<{ x: number; y: number } | null>(null);
 
+  const effectiveIsMuted = typeof isMuted === "boolean" ? isMuted : gameState.isMuted;
+
   useEffect(() => {
-    mutedRef.current = gameState.isMuted;
-  }, [gameState.isMuted]);
+    mutedRef.current = effectiveIsMuted;
+  }, [effectiveIsMuted]);
 
-  // Música de fondo: arranca sola al entrar (autoplay); si el navegador bloquea, primer pointerdown. No vinculada al botón. No se detiene nunca.
+  // Si viene isMuted desde fuera, sincronizar el gameState interno
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const audio = new Audio("/lofi.mp3");
-    audio.loop = true;
-    audio.volume = BG_VOLUME;
-    bgAudioRef.current = audio;
-
-    let startOnInteraction: (() => void) | null = null;
-
-    const tryPlay = () => {
-      audio.play().catch(() => {
-        startOnInteraction = () => {
-          audio.play().catch(() => {});
-          if (startOnInteraction) window.removeEventListener("pointerdown", startOnInteraction);
-        };
-        window.addEventListener("pointerdown", startOnInteraction);
-      });
-    };
-
-    const onError = () => {
-      if (!fallbackGainRef.current) {
-        useFallbackRef.current = true;
-        startFallbackBgMusic(audioContextRef, fallbackGainRef).then((stop) => {
-          if (stop) fallbackBgStopRef.current = stop;
-        });
-      }
-    };
-
-    audio.addEventListener("error", onError);
-    audio.addEventListener("canplaythrough", tryPlay, { once: true });
-    tryPlay();
-
-    return () => {
-      audio.removeEventListener("error", onError);
-      if (startOnInteraction) window.removeEventListener("pointerdown", startOnInteraction);
-      fallbackBgStopRef.current?.();
-      fallbackBgStopRef.current = null;
-      fallbackGainRef.current = null;
-      useFallbackRef.current = false;
-      audio.pause();
-      audio.currentTime = 0;
-      bgAudioRef.current = null;
-    };
-  }, []);
+    if (typeof isMuted === "boolean") {
+      setGameState((prev) => ({ ...prev, isMuted }));
+    }
+  }, [isMuted]);
 
   // Secuencia de entrada: primero título (fade-in), luego cards + chips
   useEffect(() => {
@@ -248,13 +220,14 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
   };
 
   const handleMuteToggle = () => {
-    setGameState((prev) => {
-      const next = !prev.isMuted;
-      try {
-        localStorage.setItem(MUTED_STORAGE_KEY, next ? "true" : "false");
-      } catch (_) {}
-      return { ...prev, isMuted: next };
-    });
+    if (onMuteToggle) {
+      onMuteToggle();
+    } else {
+      setGameState((prev) => ({
+        ...prev,
+        isMuted: !prev.isMuted,
+      }));
+    }
   };
 
   const handleChipHover = useCallback((nameId: string | null) => {
@@ -441,6 +414,7 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
         setGameState((prev) => ({
           ...prev,
           chips: prev.chips.filter((c) => c.id !== nameId),
+          ...(willBeComplete ? { showSuccess: true, successReason: "victory" as const } : {}),
         }));
 
         setCardFeedback((prev) => ({
@@ -529,18 +503,18 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     resetTimersRef.current = {};
     correctFeedbackTimersRef.current = {};
 
-    // Restaurar chips disponibles
+    // Volver a modo play y resetear timer countdown
+    setRemainingSeconds(2 * 60);
+    setMode("play");
     setGameState((prev) => ({
       ...prev,
       chips: mockChips,
       connections: [],
       draggingNameId: null,
       hoveredNameId: null,
+      showSuccess: false,
+      successReason: undefined,
     }));
-
-    // Volver a modo play y resetear timer
-    setElapsedSeconds(0);
-    setMode("play");
   };
 
   const handleCloseGame = () => {
@@ -548,27 +522,25 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     setMode("play");
   };
 
-  if (gameState.showSuccess) {
-    return (
-      <SuccessScreen
-        connections={gameState.connections}
-        cards={gameState.cards}
-        chips={gameState.chips}
-      />
-    );
-  }
-
   // Juego completo cuando ya no quedan chips disponibles (todas las uniones correctas)
   const isGameComplete = gameState.chips.length === 0;
 
-  // Timer real: actualiza cada segundo en play mode, pausa cuando isPaused
+  // Timer countdown: 2:00 → 0:00, cada segundo en play mode (pausa cuando isPaused)
   useEffect(() => {
     if (mode !== "play" || isPaused) return;
     const interval = setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
+      setRemainingSeconds((s) => (s <= 0 ? 0 : s - 1));
     }, 1000);
     return () => clearInterval(interval);
   }, [mode, isPaused]);
+
+  // Al llegar a 0:00 → pantalla final por tiempo agotado (sin tocar victoria por conexión)
+  useEffect(() => {
+    if (mode !== "play" || isPaused) return;
+    if (remainingSeconds === 0) {
+      setGameState((prev) => ({ ...prev, showSuccess: true, successReason: "timeUp" }));
+    }
+  }, [mode, isPaused, remainingSeconds]);
 
   // En reveal mode, crear resolvedByCard automático usando CORRECT_MAPPING
   const revealResolvedByCard = mode === "reveal" 
@@ -614,6 +586,22 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
     }
   }
 
+  // Pantalla final (victoria o time's up): return después de todos los hooks para no romper reglas de hooks
+  if (gameState.showSuccess) {
+    const title =
+      gameState.successReason === "timeUp"
+        ? "Endgame – Time's Up"
+        : "¡Respuestas Correctas!";
+    return (
+      <SuccessScreen
+        connections={gameState.connections}
+        cards={gameState.cards}
+        chips={gameState.chips}
+        title={title}
+      />
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {!skipBackground && <Background />}
@@ -634,8 +622,8 @@ export function GameScreen({ skipBackground = false }: GameScreenProps = {}) {
         <div className="relative z-10 min-h-screen">
           <TopHUD
             lives={gameState.lives}
-            elapsedSeconds={elapsedSeconds}
-            isMuted={gameState.isMuted}
+            elapsedSeconds={remainingSeconds}
+            isMuted={effectiveIsMuted}
             mode={mode}
             onPauseClick={handleTogglePause}
             onMuteToggle={handleMuteToggle}

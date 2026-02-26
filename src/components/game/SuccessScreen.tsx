@@ -5,12 +5,15 @@ interface SuccessScreenProps {
   connections: Array<{ nameId: string; cardId: string }>;
   cards: PhotoCard[];
   chips: NameChip[];
+  /** Título de la pantalla; por defecto victoria. Si es timeout usar "Endgame – Time's Up" */
+  title?: string;
 }
 
 export function SuccessScreen({
   connections,
   cards,
   chips,
+  title = "¡Respuestas Correctas!",
 }: SuccessScreenProps) {
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -18,7 +21,7 @@ export function SuccessScreen({
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-8">
         <div className="text-center space-y-6">
           <h1 className="text-4xl font-bold text-white mb-8">
-            ¡Respuestas Correctas!
+            {title}
           </h1>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl">
             {chips.map((chip) => {
