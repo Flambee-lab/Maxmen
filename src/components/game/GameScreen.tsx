@@ -31,6 +31,8 @@ interface GameScreenProps {
   isMuted?: boolean;
   /** Toggle global de mute (opcional); si no se pasa, usa estado interno */
   onMuteToggle?: () => void;
+  /** Al pulsar Continue en pantalla final (success o time's up); si no se pasa, se usa handleRestart */
+  onContinueFromEndgame?: () => void;
 }
 
 /** Mapping correcto: chipName -> cardId */
@@ -143,6 +145,7 @@ export function GameScreen({
   skipBackground = false,
   isMuted,
   onMuteToggle,
+  onContinueFromEndgame,
 }: GameScreenProps = {}) {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [cardStatus, setCardStatus] = useState<Record<string, "correct" | "incorrect" | "idle">>({});
@@ -852,7 +855,7 @@ export function GameScreen({
               paddingBottom: "32px",
             }}
           >
-            <GamePrimaryButton onClick={handleRestart}>
+            <GamePrimaryButton onClick={onContinueFromEndgame ?? handleRestart}>
               Continue
             </GamePrimaryButton>
           </div>

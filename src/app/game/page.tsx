@@ -6,12 +6,16 @@ import { GameDescriptionScreen } from "@/components/intro/GameDescriptionScreen"
 import { SpecsScreen } from "@/components/specs/SpecsScreen";
 import { CoachScreen } from "@/components/game/coach/CoachScreen";
 import { GameScreen } from "@/components/game/GameScreen";
+import { RewardVideoScreen } from "@/components/game/RewardVideoScreen";
+import { ResultsScreen } from "@/components/game/ResultsScreen";
 
 const MUTED_STORAGE_KEY = "maxman_sound_muted";
 const BG_VOLUME = 0.075;
 
+type GameStage = "intro" | "specs" | "coach" | "play" | "rewardVideo" | "results";
+
 export default function GamePage() {
-  const [stage, setStage] = useState<"intro" | "specs" | "coach" | "play">("intro");
+  const [stage, setStage] = useState<GameStage>("intro");
   const [isMuted, setIsMuted] = useState<boolean>(false); // Por defecto sonido encendido
   const [mounted, setMounted] = useState(false);
   const bgAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -120,7 +124,14 @@ export default function GamePage() {
             skipBackground
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted((m) => !m)}
+            onContinueFromEndgame={() => setStage("rewardVideo")}
           />
+        )}
+        {stage === "rewardVideo" && (
+          <RewardVideoScreen onComplete={() => setStage("results")} />
+        )}
+        {stage === "results" && (
+          <ResultsScreen />
         )}
       </div>
     </div>
