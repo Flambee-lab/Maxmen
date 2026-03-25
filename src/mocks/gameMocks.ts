@@ -60,4 +60,13 @@ export const mockChips: NameChip[] = [
     isMatched: false,
     correctCardId: "card-4",
   },
+  /** Chip distractor: siempre incorrecto; no forma parte de la solución */
+  {
+    id: "chip-distractor-r1",
+    name: "Iara",
+    isSelected: false,
+    isMatched: false,
+    correctCardId: "__distractor__",
+    isDistractor: true,
+  },
 ];

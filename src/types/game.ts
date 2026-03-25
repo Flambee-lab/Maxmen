@@ -12,6 +12,8 @@ export interface NameChip {
   isSelected: boolean;
   isMatched: boolean;
   correctCardId: string;
+  /** Si true: nunca es respuesta correcta; solo distrae (se quita al terminar la ronda) */
+  isDistractor?: boolean;
 }
 
 export interface DragState {

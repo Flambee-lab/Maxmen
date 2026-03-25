@@ -17,6 +17,18 @@ interface GameCardProps {
   slotArrowOpacity?: number;
   /** Cuando true (card es origen en modo card→chip), no se dibuja la flecha estática para no duplicar con el overlay */
   isOriginActive?: boolean;
+  /** Permite mostrar el connect slot aunque exista resolvedChipName (uso visual en Round 2/3) */
+  showConnectSlotWhenResolved?: boolean;
+  /** Texto secundario embebido en el name container (Round 2/3) */
+  relationshipLabel?: string;
+  /** Si true, mantiene visible el conector aun con relationshipLabel (Round 3) */
+  keepConnectorWhenRelationship?: boolean;
+  /** Offset vertical extra para conector en estado resuelto */
+  resolvedConnectorExtraOffsetPx?: number;
+  /** Texto embebido para Round 3 correcto (birth date) */
+  birthDateLabel?: string;
+  /** Solo foto (intro previa a ronda 1): sin connect slot ni elementos extra */
+  photosOnly?: boolean;
 }
 
 const CARD_SIZE = 208;
@@ -42,6 +54,12 @@ export function GameCard({
   showSlotArrow = true,
   slotArrowOpacity = 0.2,
   isOriginActive = false,
+  showConnectSlotWhenResolved = false,
+  relationshipLabel,
+  keepConnectorWhenRelationship = false,
+  resolvedConnectorExtraOffsetPx = 0,
+  birthDateLabel,
+  photosOnly = false,
 }: GameCardProps) {
   const isIncorrect = cardFeedback === "incorrect";
   const isCorrectFeedback = cardFeedback === "correct";
@@ -159,7 +177,7 @@ export function GameCard({
         )}
       </div>
 
-      {isResolved ? (
+      {isResolved && !photosOnly ? (
         /* NameTag cuando la card está resuelta (aparición suave) */
         <div
           className="game-nametag-enter absolute pointer-events-none"
@@ -168,8 +186,11 @@ export function GameCard({
             bottom: 0,
             transform: "translateX(-50%) translateY(50%)",
             display: "flex",
+            flexDirection: "column",
             width: `${NAME_TAG_WIDTH}px`,
             padding: `${NAME_TAG_PADDING}px`,
+            ...(birthDateLabel ? { paddingBottom: "16px" } : undefined),
+            ...(birthDateLabel ? { overflow: "hidden" } : undefined),
             justifyContent: "center",
             alignItems: "center",
             borderRadius: `${NAME_TAG_RADIUS}px`,
@@ -191,9 +212,61 @@ export function GameCard({
           >
             {resolvedChipName}
           </span>
+          {relationshipLabel && (
+            <span
+              style={{
+                marginTop: "12px",
+                fontFamily: "var(--font-bitter), serif",
+                fontWeight: 600,
+                fontSize: "18px",
+                color: "rgba(255, 255, 255, 0.60)",
+                textAlign: "center",
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {`is my ${relationshipLabel}`}
+            </span>
+          )}
+          {birthDateLabel && (
+            <>
+              <div style={{ height: "16px" }} />
+              <div
+                aria-hidden="true"
+                style={{
+                  width: "100%",
+                  marginLeft: `-${NAME_TAG_PADDING}px`,
+                  marginRight: `-${NAME_TAG_PADDING}px`,
+                  height: "1px",
+                  background: "rgba(255, 255, 255, 0.20)",
+                }}
+              />
+              <div style={{ height: "16px" }} />
+              <span
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 600,
+                  fontSize: "18px",
+                  color: "rgba(255, 255, 255, 0.80)",
+                  textAlign: "center",
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                  display: "block",
+                }}
+              >
+                {birthDateLabel}
+              </span>
+            </>
+          )}
         </div>
-      ) : (
-        /* Connect slot cuando NO está resuelta */
+      ) : null}
+
+      {!photosOnly &&
+        (!isResolved ||
+          (showConnectSlotWhenResolved &&
+            (!relationshipLabel || keepConnectorWhenRelationship))) &&
+        !birthDateLabel && (
+        /* Connect slot cuando NO está resuelta o cuando se solicita mostrarlo bajo NameTag */
         <div
           ref={(el) => {
             if (connectSlotRef) {
@@ -207,7 +280,10 @@ export function GameCard({
           style={{
             left: "50%",
             bottom: 0,
-            transform: "translateX(-50%) translateY(50%)",
+            transform:
+              isResolved && showConnectSlotWhenResolved
+                ? `translateX(-50%) translateY(calc(102% + 8px + ${resolvedConnectorExtraOffsetPx}px))`
+                : "translateX(-50%) translateY(50%)",
             width: `${CONNECT_SLOT_SIZE}px`,
             height: `${CONNECT_SLOT_SIZE}px`,
             borderRadius: "9999px",

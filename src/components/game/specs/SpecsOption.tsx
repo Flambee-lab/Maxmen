@@ -1,9 +1,15 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface SpecsOptionProps {
   label: string;
   selected: boolean;
   onClick: () => void;
+  /** Si true, no responde al click (opción no elegible en este paso) */
+  disabled?: boolean;
+  /** Icono a la izquierda del label (misma pill, mismo estilo que el resto de Specs). */
+  icon?: ReactNode;
 }
 
 const REST_STYLE: React.CSSProperties = {
@@ -26,32 +32,56 @@ const SELECTED_STYLE: React.CSSProperties = {
  * Selector de categoría en SpecsScreen.
  * REST o SELECTED según prop selected; onClick para cambiar selección.
  */
-export function SpecsOption({ label, selected, onClick }: SpecsOptionProps) {
+export function SpecsOption({
+  label,
+  selected,
+  onClick,
+  disabled = false,
+  icon,
+}: SpecsOptionProps) {
   return (
     <div
       className="specs-option-btn"
       role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => e.key === "Enter" && onClick()}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onClick={() => {
+        if (!disabled) onClick();
+      }}
+      onKeyDown={(e) => {
+        if (!disabled && e.key === "Enter") onClick();
+      }}
       style={{
         width: "320px",
-        height: "60px",
+        minHeight: "60px",
+        padding: "10px 20px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        gap: icon ? "12px" : undefined,
         boxSizing: "border-box",
+        textAlign: "center",
         fontFamily: "var(--font-bitter), serif",
         fontSize: "20px",
         fontWeight: 600,
         color: "#FFFFFF",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         outline: "none",
         outlineOffset: 0,
+        opacity: disabled ? 0.42 : 1,
+        pointerEvents: disabled ? "none" : "auto",
         ...(selected ? SELECTED_STYLE : REST_STYLE),
       }}
     >
-      {label}
+      {icon ? (
+        <span
+          className="flex shrink-0 items-center justify-center text-white"
+          aria-hidden
+        >
+          {icon}
+        </span>
+      ) : null}
+      <span>{label}</span>
     </div>
   );
 }

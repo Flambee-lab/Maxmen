@@ -16,6 +16,13 @@ interface CardStageProps {
   showSlotArrow?: boolean;
   /** Card que es origen en modo card → chip; su flecha a 100%, el resto 20% */
   activeOriginCardId?: string | null;
+  showConnectSlotWhenResolved?: boolean;
+  relationshipByCard?: Record<string, string>;
+  keepConnectorWhenRelationship?: boolean;
+  resolvedConnectorExtraOffsetPx?: number;
+  birthDateByCard?: Record<string, string>;
+  /** Solo imágenes (intro ronda 1): sin slots ni chips */
+  photosOnly?: boolean;
 }
 
 const CARD_STAGGER_MS = 80;
@@ -32,6 +39,12 @@ export function CardStage({
   animateMount = false,
   showSlotArrow = true,
   activeOriginCardId = null,
+  showConnectSlotWhenResolved = false,
+  relationshipByCard = {},
+  keepConnectorWhenRelationship = false,
+  resolvedConnectorExtraOffsetPx = 0,
+  birthDateByCard = {},
+  photosOnly = false,
 }: CardStageProps) {
   return (
     <div className="relative z-10 flex items-end justify-center gap-[20px] px-4">
@@ -53,6 +66,12 @@ export function CardStage({
           showSlotArrow={showSlotArrow}
           slotArrowOpacity={activeOriginCardId === card.id ? 1 : 0.2}
           isOriginActive={activeOriginCardId === card.id}
+          showConnectSlotWhenResolved={showConnectSlotWhenResolved}
+          relationshipLabel={relationshipByCard[card.id]}
+          keepConnectorWhenRelationship={keepConnectorWhenRelationship}
+          resolvedConnectorExtraOffsetPx={resolvedConnectorExtraOffsetPx}
+          birthDateLabel={birthDateByCard[card.id]}
+          photosOnly={photosOnly}
         />
       ))}
     </div>

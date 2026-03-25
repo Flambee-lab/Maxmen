@@ -1,6 +1,5 @@
 import { GamePrimaryButton } from "./GamePrimaryButton";
 import { CloseButton } from "./CloseButton";
-import { RevealAnswersButton } from "./RevealAnswersButton";
 
 interface PauseMenuProps {
   onResume: () => void;
@@ -72,13 +71,6 @@ export function PauseMenu({ onResume, onQuit }: PauseMenuProps) {
         </button>
       </div>
 
-      {/* Botón Reveal Answers también visible en la pantalla de pausa, pegado al bottom */}
-      <div
-        className="absolute left-1/2"
-        style={{ bottom: 0, transform: "translateX(-50%)" }}
-      >
-        <RevealAnswersButton onClick={() => console.log("reveal-from-pause")} />
-      </div>
     </div>
   );
 }

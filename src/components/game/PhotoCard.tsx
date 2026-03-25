@@ -19,6 +19,12 @@ interface PhotoCardProps {
   showSlotArrow?: boolean;
   slotArrowOpacity?: number;
   isOriginActive?: boolean;
+  showConnectSlotWhenResolved?: boolean;
+  relationshipLabel?: string;
+  keepConnectorWhenRelationship?: boolean;
+  resolvedConnectorExtraOffsetPx?: number;
+  birthDateLabel?: string;
+  photosOnly?: boolean;
 }
 
 export function PhotoCardComponent({
@@ -37,6 +43,12 @@ export function PhotoCardComponent({
   showSlotArrow = true,
   slotArrowOpacity = 0.2,
   isOriginActive = false,
+  showConnectSlotWhenResolved = false,
+  relationshipLabel,
+  keepConnectorWhenRelationship = false,
+  resolvedConnectorExtraOffsetPx = 0,
+  birthDateLabel,
+  photosOnly = false,
 }: PhotoCardProps) {
   const isResolved = !!resolvedChipName;
   // Solo mostrar highlight si no está resuelta y no está en feedback incorrecto
@@ -85,6 +97,12 @@ export function PhotoCardComponent({
           showSlotArrow={showSlotArrow}
           slotArrowOpacity={slotArrowOpacity}
           isOriginActive={isOriginActive}
+          showConnectSlotWhenResolved={showConnectSlotWhenResolved}
+          relationshipLabel={relationshipLabel}
+          keepConnectorWhenRelationship={keepConnectorWhenRelationship}
+          resolvedConnectorExtraOffsetPx={resolvedConnectorExtraOffsetPx}
+          birthDateLabel={birthDateLabel}
+          photosOnly={photosOnly}
         />
       </div>
     </div>

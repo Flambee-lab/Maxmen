@@ -3,12 +3,26 @@ import Image from "next/image";
 interface LivesProps {
   lives: number;
   maxLives: number;
+  /** Más pequeño para HUD secundario (p. ej. pantalla de resultados) */
+  size?: "default" | "compact";
 }
 
-const LAMP_SIZE = 68;
-const LAMP_SCALE = 1.15;
+const SIZES = {
+  default: {
+    lamp: 68,
+    scale: 1.15,
+    overlap: -32,
+  },
+  compact: {
+    lamp: 44,
+    scale: 1.08,
+    overlap: -22,
+  },
+} as const;
 
-export function Lives({ lives, maxLives }: LivesProps) {
+export function Lives({ lives, maxLives, size = "default" }: LivesProps) {
+  const { lamp: LAMP_SIZE, scale: LAMP_SCALE, overlap: OVERLAP } = SIZES[size];
+
   return (
     <div
       style={{
@@ -27,7 +41,7 @@ export function Lives({ lives, maxLives }: LivesProps) {
               width: `${LAMP_SIZE}px`,
               height: `${LAMP_SIZE}px`,
               margin: 0,
-              marginLeft: index > 0 ? "-32px" : "0",
+              marginLeft: index > 0 ? `${OVERLAP}px` : "0",
               padding: 0,
               flexShrink: 0,
               display: "flex",

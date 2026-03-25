@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         bitter: ["var(--font-bitter)", "serif"],
+        inter: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
     },
   },

@@ -4,6 +4,7 @@
 
 :root {
   --font-bitter: "Bitter", Georgia, serif;
+  --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
   /* Colores del diseño */
   --bg-dark-blue: #1e2c51;
   --bg-medium-blue: #374f7a;
@@ -100,6 +101,120 @@ body {
   outline-offset: 0;
 }
 
+/* ========== Results screen — filtros superiores (Figma node 6437:2623) ========== */
+:root {
+  /* Chips “All / Names / …” */
+  --results-chip-radius: 9999px;
+  --results-chip-h: 36px;
+  --results-chip-pad-x: 16px;
+  --results-chip-pad-y: 8px;
+  --results-chip-gap: 8px;
+  --results-chip-font-size: 14px;
+  --results-chip-line-height: 20px;
+  --results-chip-inactive-bg: rgba(255, 255, 255, 0.05);
+  --results-chip-inactive-border: rgba(255, 255, 255, 0.38);
+  --results-chip-inactive-text: rgba(255, 255, 255, 0.96);
+  --results-chip-active-bg: #ffffff;
+  --results-chip-active-text: #0f172a;
+  --results-chip-active-shadow: 0 1px 2px rgba(15, 23, 42, 0.08),
+    0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.results-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--results-chip-gap);
+}
+
+.results-filter-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--results-chip-h);
+  padding: var(--results-chip-pad-y) var(--results-chip-pad-x);
+  border-radius: var(--results-chip-radius);
+  border: 1px solid var(--results-chip-inactive-border);
+  background: var(--results-chip-inactive-bg);
+  color: var(--results-chip-inactive-text);
+  font-family: var(--font-bitter), serif;
+  font-size: var(--results-chip-font-size);
+  font-weight: 500;
+  line-height: var(--results-chip-line-height);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: default;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.results-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.48);
+}
+
+.results-filter-chip--active {
+  font-weight: 600;
+  border-color: transparent;
+  background: var(--results-chip-active-bg);
+  color: var(--results-chip-active-text);
+  box-shadow: var(--results-chip-active-shadow);
+}
+
+.results-filter-chip--active:hover {
+  background: #f8fafc;
+  border-color: transparent;
+}
+
+.results-filter-chip:focus {
+  outline: none;
+}
+
+.results-filter-chip:focus-visible {
+  outline: 2px solid rgba(163, 191, 249, 0.65);
+  outline-offset: 2px;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --results-chip-pad-x: 18px;
+  }
+}
+
+/* Tarjetas de métricas en resultados — mismo lenguaje que .glass-button / HUD */
+.results-screen-chart-card {
+  border-radius: 20px;
+  border: 1px solid rgba(163, 191, 249, 0.22);
+  background: rgba(30, 44, 81, 0.58);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.results-screen-summary-shell {
+  border-radius: 24px;
+  border: 1px solid rgba(163, 191, 249, 0.2);
+  background: linear-gradient(
+    160deg,
+    rgba(55, 79, 122, 0.45) 0%,
+    rgba(30, 44, 81, 0.82) 100%
+  );
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Panel de resumen pegado al top / right / bottom del viewport (lg+); sin borde derecho al ras */
+@media (min-width: 1024px) {
+  .results-screen-summary-shell--docked {
+    border-radius: 24px 0 0 24px;
+    border-right: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+}
+
 /* CoachScreen: ocultar cards del layer base (solo se ven en spotlight window) */
 .coach-screen .coach-cards-container {
   opacity: 0;
@@ -135,10 +250,12 @@ body {
   from {
     opacity: 0;
     filter: blur(4px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
     filter: blur(0);
+    transform: translateY(0);
   }
 }
 
@@ -197,7 +314,7 @@ body {
   animation: game-card-enter 450ms ease-out both;
 }
 .game-chip-enter {
-  animation: game-chip-enter 350ms ease-out 250ms both;
+  animation: game-chip-enter 420ms ease-out both;
 }
 /* Overlay correcto/incorrecto: sin animación (instantáneo) */
 .game-overlay-fade-in {
@@ -211,6 +328,108 @@ body {
 }
 .game-breathe {
   animation: game-breathe 10s ease-in-out infinite;
+}
+
+/* Juego (/game en play + GameScreen): altura fija al viewport — evita scroll en transiciones */
+.game-viewport-lock {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@supports not (height: 100dvh) {
+  .game-viewport-lock {
+    height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+.round-transition-flip {
+  perspective: 1200px;
+}
+
+@keyframes round-card-spin-y {
+  0% {
+    transform: rotateY(0deg);
+  }
+  50% {
+    transform: rotateY(180deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+.round-transition-flip .game-card-shell {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  animation: round-card-spin-y 2900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.round-transition-flip > div > :nth-child(1) .game-card-shell {
+  animation-delay: 0ms;
+}
+
+.round-transition-flip > div > :nth-child(2) .game-card-shell {
+  animation-delay: 220ms;
+}
+
+.round-transition-flip > div > :nth-child(3) .game-card-shell {
+  animation-delay: 440ms;
+}
+
+.round-transition-flip > div > :nth-child(4) .game-card-shell {
+  animation-delay: 660ms;
+}
+
+@keyframes round-transition-title-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.round-transition-title-enter {
+  animation: round-transition-title-enter 1100ms ease-out both;
+}
+
+.round-transition-title-layer {
+  position: relative;
+  z-index: 40;
+  width: 100%;
+}
+
+/* Categoría centrada sin re-animar (permanece estática mientras giran las cartas) */
+.round-transition-title-static {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+.round-transition-title-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Entrada suave al tablero tras intro / transición entre rondas */
+@media (prefers-reduced-motion: reduce) {
+  .game-playfield-soft-enter {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 .specs-option-enter {
@@ -401,6 +620,12 @@ body {
   .bg-ring-spin,
   .intro-card-breathe,
   .intro-screen-enter {
+    animation: none !important;
+  }
+  .round-transition-flip .game-card-shell {
+    animation: none !important;
+  }
+  .round-transition-title-enter {
     animation: none !important;
   }
   .game-title-enter,

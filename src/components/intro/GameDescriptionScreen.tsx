@@ -1,39 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Background } from "@/components/game/Background";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { playClickSfx } from "@/lib/clickSfx";
 import { IntroIllustrationSvg } from "@/components/intro/IntroIllustrationSvg";
 
 interface GameDescriptionScreenProps {
   highScore?: number;
-  difficulty?: number;
   isMuted?: boolean;
   onMuteToggle?: () => void;
-  /** Cuando se usa dentro de GameContainer, inicia la etapa coach en lugar de navegar */
-  onStart?: () => void;
+  onCustomStart?: (settings: {
+    secondsPerRound: number;
+    difficulty: "easy" | "medium";
+  }) => void;
+  onQuickPlayStart?: (settings: {
+    secondsPerRound: number;
+    difficulty: "easy" | "medium";
+  }) => void;
   /** Si true, no renderiza Background (lo provee el padre) */
   embedded?: boolean;
 }
 
 export function GameDescriptionScreen({
   highScore = 0,
-  difficulty = 4,
   isMuted = false,
   onMuteToggle = () => {},
-  onStart,
+  onCustomStart,
+  onQuickPlayStart,
   embedded = false,
 }: GameDescriptionScreenProps) {
   const router = useRouter();
-  const [isDifficultyModalOpen, setIsDifficultyModalOpen] = useState(false);
 
-  const handleStartGame = () => {
-    if (onStart) onStart();
-    else router.push("/game");
+  const defaultSeconds = typeof highScore === "number" && highScore > 0 ? highScore : 58;
+  const [secondsPerRound, setSecondsPerRound] = useState(defaultSeconds);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium">("medium");
+
+  const MIN_SECONDS = 30;
+  const MAX_SECONDS = 120;
+  const STEP_SECONDS = 1;
+
+  const clampSeconds = (n: number) =>
+    Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, n));
+
+  /** Misma tipografía en “Fastest Perfect Score” y “4 images per round” */
+  const controlsBottomLabelStyle: CSSProperties = {
+    fontFamily: "var(--font-bitter), serif",
+    fontWeight: 600,
+    fontSize: "20px",
+    color: "rgba(255, 255, 255, 0.80)",
+    lineHeight: 1,
+    letterSpacing: "0.4px",
+    whiteSpace: "nowrap",
+  };
+
+  const handleCustomGame = () => {
+    const settings = { secondsPerRound, difficulty };
+    playClickSfx();
+    onCustomStart?.(settings);
+    if (!onCustomStart) router.push("/game");
+  };
+
+  const handleQuickPlay = () => {
+    const settings = { secondsPerRound, difficulty };
+    playClickSfx();
+    onQuickPlayStart?.(settings);
+    if (!onQuickPlayStart) router.push("/game");
   };
 
   const handleClose = () => {
@@ -42,7 +77,7 @@ export function GameDescriptionScreen({
 
   const content = (
     <>
-      <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden intro-screen-enter">
+      <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-start px-6 overflow-hidden intro-screen-enter">
         {/* Top Right Icons - Same position as TopHUD */}
         <div
           className="absolute right-6 z-20"
@@ -57,8 +92,8 @@ export function GameDescriptionScreen({
           <CloseButton onClick={handleClose} />
         </div>
 
-        {/* Contenedor principal centrado - sin scroll */}
-        <main className="w-full flex flex-col items-center justify-center max-w-2xl py-8">
+        {/* Contenedor principal (permite que los botones vayan abajo con mt-auto) */}
+        <main className="w-full flex flex-col items-center max-w-2xl py-8 flex-1">
           {/* Game Concept Illustration - centrada en viewport (SVG inline para poder interactuar con elementos) */}
           <div className="w-full flex items-center justify-center" style={{ width: "312px", height: "180px" }}>
             <IntroIllustrationSvg
@@ -80,48 +115,118 @@ export function GameDescriptionScreen({
           >
             Remind
           </h1>
-
-          {/* Stats Section: HighScore | [línea + icono] | Difficulty — una sola línea central */}
-          <div className="relative flex items-center justify-center w-full" style={{ marginTop: "40px", paddingBottom: "20px" }}>
-            {/* High Score */}
-            <div className="flex flex-col items-center">
-              <span
-                className="text-white"
-                style={{
-                  fontFamily: "var(--font-bitter), serif",
-                  fontWeight: 600,
-                  fontSize: "32px",
-                  color: "#FFFFFF",
-                  marginBottom: "8px",
-                }}
-              >
-                {highScore}
-              </span>
-              <span
-                className="text-white/80"
-                style={{
-                  fontFamily: "var(--font-bitter), serif",
-                  fontWeight: 600,
-                  fontSize: "24px",
-                  color: "rgba(255, 255, 255, 0.80)",
-                }}
-              >
-                High score
-              </span>
-            </div>
-
-            {/* Columna central: una sola línea (+12px) + ícono info tocando la línea */}
+          {/* Controls Row: dos mitades iguales (flex-1) para centrar el divisor; cajas ≤300px alineadas al centro */}
+          <div
+            className="w-full min-w-0"
+            style={{
+              marginTop: "40px",
+              paddingBottom: "20px",
+            }}
+          >
+            <div className="flex w-full min-w-0 items-start justify-center gap-0">
+              <div className="flex min-h-0 min-w-0 flex-1 justify-end pr-4 sm:pr-5">
+            {/* Grid: ancho al contenido (w-max) para pegar el bloque al divisor; col2 max-content; 8px estrella–texto */}
             <div
-              className="flex flex-col items-center"
-              style={{ marginLeft: "32px", marginRight: "32px" }}
+              className="relative w-max max-w-[300px] shrink-0"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "28px max-content",
+                columnGap: "8px",
+                gridTemplateRows: "68px 28px",
+                alignItems: "center",
+              }}
+            >
+              {/* Fila 1: celda izquierda vacía; “58 sec” centrado sobre el texto de abajo (col 2) */}
+              <div
+                aria-hidden
+                style={{
+                  gridColumn: 1,
+                  gridRow: 1,
+                }}
+              />
+              <div
+                style={{
+                  gridColumn: 2,
+                  gridRow: 1,
+                  padding: "8px 12px",
+                  height: "68px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid rgba(255, 255, 255, 0)",
+                  borderRadius: "32px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-bitter), serif",
+                    fontWeight: 600,
+                    fontSize: "32px",
+                    color: "#FFFFFF",
+                    textAlign: "center",
+                    lineHeight: "1",
+                  }}
+                >
+                  {secondsPerRound} sec
+                </span>
+              </div>
+
+              {/* Fila 2: estrella | texto */}
+              <div
+                style={{
+                  gridColumn: 1,
+                  gridRow: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  className="shrink-0"
+                >
+                  <path
+                    d="M12 2l2.9 6.9L22 9.6l-5 4.4L18.2 21 12 17.6 5.8 21 7 14 2 9.6l7.1-0.7L12 2z"
+                    fill="#FFD700"
+                    opacity="0.9"
+                  />
+                </svg>
+              </div>
+              <div
+                style={{
+                  gridColumn: 2,
+                  gridRow: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "28px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <span style={controlsBottomLabelStyle}>Fastest Perfect Score</span>
+              </div>
+            </div>
+              </div>
+
+            {/* Divider + info icon (altura alineada al bloque sec / fastest) */}
+            <div
+              className="flex flex-col items-center justify-between shrink-0"
+              style={{ width: "32px", height: "96px" }}
             >
               <div
                 style={{
                   width: "1px",
-                  height: "76px",
                   backgroundColor: "rgba(255, 255, 255, 0.20)",
+                  flexGrow: 1,
                 }}
               />
+              {/* Info al final del divisor vertical */}
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                 style={{
@@ -141,147 +246,205 @@ export function GameDescriptionScreen({
               </div>
             </div>
 
-            {/* Difficulty */}
-            <div className="flex flex-col items-center">
-              <div className="flex items-center gap-2" style={{ marginBottom: "8px" }}>
-                <span
-                  className="text-white"
-                  style={{
-                    fontFamily: "var(--font-bitter), serif",
-                    fontWeight: 600,
-                    fontSize: "32px",
-                    color: "#FFFFFF",
-                  }}
-                >
-                  {difficulty}/{difficulty}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsDifficultyModalOpen(true)}
-                  className="flex items-center justify-center"
-                  aria-label="Edit difficulty"
-                  style={{
-                    cursor: "pointer",
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                  }}
-                >
-                  <Image
-                    src="/intro/difficulty-icon.png"
-                    alt="Difficulty"
-                    width={40}
-                    height={40}
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      display: "block",
-                    }}
-                  />
-                </button>
-              </div>
-              <span
-                className="text-white/80"
+              <div className="flex min-h-0 min-w-0 flex-1 justify-start pl-4 sm:pl-5">
+            <div
+              className="relative flex w-full max-w-[300px] shrink-0 flex-col items-center"
+            >
+              {/* Difficulty dropdown */}
+              <div
+                className="border-2 border-[rgba(255,255,255,0.2)] border-solid rounded-[32px] content-stretch flex flex-col items-center justify-center"
                 style={{
-                  fontFamily: "var(--font-bitter), serif",
-                  fontWeight: 600,
-                  fontSize: "24px",
-                  color: "rgba(255, 255, 255, 0.80)",
+                  width: "100%",
+                  height: "68px",
+                  padding: "8px 12px",
+                  boxSizing: "border-box",
+                  overflow: "hidden",
                 }}
               >
-                Difficulty
-              </span>
+                <div
+                  className="relative flex items-center justify-center w-full"
+                  style={{ height: "100%" }}
+                >
+                  <select
+                    value={difficulty}
+                    onChange={(e) =>
+                      setDifficulty(
+                        (e.target.value as "easy" | "medium") || "medium"
+                      )
+                    }
+                    className="appearance-none bg-transparent text-white"
+                    style={{
+                      fontFamily: "var(--font-bitter), serif",
+                      fontWeight: 600,
+                      fontSize: "32px",
+                      lineHeight: "1",
+                      color: "#FFFFFF",
+                      textAlign: "center",
+                      width: "100%",
+                      height: "100%",
+                      outline: "none",
+                      border: "none",
+                      padding: 0,
+                      margin: 0,
+                      display: "block",
+                    }}
+                    aria-label="Select difficulty"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                  </select>
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      right: "8px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M7 10l5 5 5-5"
+                        stroke="rgba(255,255,255,0.9)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="relative shrink-0 w-full flex items-center justify-center"
+                style={{
+                  marginTop: "0px",
+                  height: "28px",
+                }}
+              >
+                <span style={controlsBottomLabelStyle}>4 images per round</span>
+              </div>
+            </div>
+              </div>
             </div>
           </div>
 
-          {/* Game Description - 16px desde info icon, centrado */}
+          {/* Game Description: ancho amplio para ~3 líneas en desktop */}
           <p
-            className="mx-auto max-w-md text-center"
+            className="mx-auto text-center w-full"
             style={{
+              maxWidth: "min(1100px, 94vw)",
               fontFamily: "var(--font-bitter), serif",
               fontWeight: 500,
               fontSize: "24px",
               color: "rgba(255, 255, 255, 0.80)",
-              lineHeight: "1.5",
-              marginTop: "16px",
+              lineHeight: "1.45",
+              marginTop: "8px",
             }}
           >
-            You will be shown a series of pictures and a list of options to match
-            them. The faster you match, the better your score.
+            <span style={{ display: "block" }}>
+              A question will appear above a group of your memory images.Quickly
+              match each answer to its correct image.
+            </span>
+            <span style={{ display: "block" }}>
+              Try to get the fastest perfect score.
+            </span>
           </p>
 
-          {/* Start Game Button - 32px desde párrafo, centrado */}
-          <GamePrimaryButton
-            className="mx-auto"
-            style={{ marginTop: "32px" }}
-            onClick={handleStartGame}
+          {/* Bottom Buttons */}
+          <div
+            className="w-full flex items-center justify-center mt-auto"
+            style={{ paddingBottom: "32px", paddingTop: "24px" }}
           >
-            Start Game
-          </GamePrimaryButton>
+            <div className="flex items-start justify-center gap-[24px]">
+              {/* Izquierda: Quick Play + Random Memory Challenge */}
+              <div
+                className="flex flex-col items-center shrink-0"
+                style={{ width: "240px" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleQuickPlay()}
+                  className="game-focus-visible"
+                  style={{
+                    width: "240px",
+                    height: "68px",
+                    borderRadius: "32px",
+                    border: "2px solid rgba(255, 255, 255, 0.40)",
+                    background:
+                      "linear-gradient(232deg, rgba(255, 255, 255, 0.00) -43.91%, rgba(255, 255, 255, 0.15) 42.3%)",
+                    boxShadow:
+                      "0 42px 32.4px 0 rgba(0, 0, 0, 0.10), 0 -14px 14.2px 0 rgba(255, 255, 255, 0.10) inset",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-bitter), serif",
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "#FFFFFF",
+                  }}
+                >
+                  Quick Play
+                </button>
+                <p
+                  style={{
+                    marginTop: "16px",
+                    marginBottom: 0,
+                    width: "100%",
+                    textAlign: "center",
+                    fontFamily: "var(--font-bitter), serif",
+                    fontWeight: 400,
+                    fontSize: "16px",
+                    lineHeight: 1.3,
+                    color: "rgba(255, 255, 255, 0.80)",
+                  }}
+                >
+                  Random Memory Challenge
+                </p>
+              </div>
+
+              <div
+                className="flex shrink-0 items-center justify-center"
+                style={{ height: "68px" }}
+              >
+                <p
+                  style={{
+                    fontFamily: "var(--font-bitter), serif",
+                    fontWeight: 500,
+                    fontSize: "24px",
+                    color: "rgba(255, 255, 255, 0.80)",
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  or
+                </p>
+              </div>
+
+              {/* Derecha: Focus Game (flujo custom / focus groups) */}
+              <div
+                className="flex shrink-0 items-center justify-center"
+                style={{ height: "68px" }}
+              >
+                <GamePrimaryButton
+                  onClick={handleCustomGame}
+                  style={{ width: "240px" }}
+                >
+                  Focus Game
+                </GamePrimaryButton>
+              </div>
+            </div>
+          </div>
         </main>
       </div>
-
-      {/* Difficulty Modal */}
-      {isDifficultyModalOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setIsDifficultyModalOpen(false)}
-        >
-          <div
-            className="bg-[#284B79] border-2 border-white/20 rounded-2xl p-8 max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2
-                className="text-white text-2xl font-bold"
-                style={{
-                  fontFamily: "var(--font-bitter), serif",
-                }}
-              >
-                Difficulty
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsDifficultyModalOpen(false)}
-                className="text-white hover:text-white/80"
-                aria-label="Close"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <p
-              className="text-white/80 mb-6"
-              style={{
-                fontFamily: "var(--font-bitter), serif",
-              }}
-            >
-              Difficulty options will be implemented here.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsDifficultyModalOpen(false)}
-              className="w-full px-6 py-3 bg-white/20 border border-white/20 rounded-lg text-white hover:bg-white/30"
-              style={{
-                fontFamily: "var(--font-bitter), serif",
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 

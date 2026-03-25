@@ -30,8 +30,13 @@ export function ChipRow({
 }: ChipRowProps) {
   return (
     <div className="relative z-10 flex items-center justify-center gap-[16px]">
-      {chips.map((chip) => (
-        <div key={chip.id} className="game-chip-enter">
+      {chips.map((chip, idx) => (
+        <div
+          key={chip.id}
+          className="game-chip-enter"
+          // Stagger escalonado: entra 1 por 1 como una escalera
+          style={{ animationDelay: `${idx * 170}ms` }}
+        >
           <Chip
             label={chip.name}
             nameId={chip.id}

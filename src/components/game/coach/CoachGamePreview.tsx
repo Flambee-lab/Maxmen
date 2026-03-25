@@ -5,11 +5,11 @@ import { TopHUD } from "@/components/game/TopHUD";
 import { GameInstruction } from "@/components/game/GameInstruction";
 import { CardStage } from "@/components/game/CardStage";
 import { ChipRow } from "@/components/game/ChipRow";
-import { RevealAnswersButton } from "@/components/game/RevealAnswersButton";
 import { mockCards, mockChips } from "@/mocks/gameMocks";
 
 /** Preview del juego completo para Coach: 3 cards, N-1 chips. Sin lógica, solo visual. */
 const COACH_CARDS = mockCards.slice(0, 3);
+/** Excluye el chip distractor “Iara” (último en mockChips) */
 const COACH_CHIPS = mockChips.slice(0, -1);
 
 interface CoachGamePreviewProps {
@@ -61,12 +61,6 @@ export function CoachGamePreview({ skipBackground = true, hideTitle = false }: C
         </main>
       </div>
 
-      <div
-        className="absolute left-1/2"
-        style={{ bottom: 0, transform: "translateX(-50%)" }}
-      >
-        <RevealAnswersButton onClick={() => {}} />
-      </div>
     </div>
   );
 }

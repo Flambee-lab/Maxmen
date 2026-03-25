@@ -4,25 +4,83 @@ import { useState, useEffect, useRef } from "react";
 import { Background } from "@/components/game/Background";
 import { GameDescriptionScreen } from "@/components/intro/GameDescriptionScreen";
 import { SpecsScreen } from "@/components/specs/SpecsScreen";
+import { SpecsStep2PracticeScreen } from "@/components/specs/SpecsStep2PracticeScreen";
+import { SpecsStep3TopicScreen } from "@/components/specs/SpecsStep3TopicScreen";
 import { CoachScreen } from "@/components/game/coach/CoachScreen";
 import { GameScreen } from "@/components/game/GameScreen";
 import { RewardVideoScreen } from "@/components/game/RewardVideoScreen";
-import { ResultsScreen } from "@/components/game/ResultsScreen";
+import { ResultsScreen } from "@/components/results";
 
 const MUTED_STORAGE_KEY = "maxman_sound_muted";
 const BG_VOLUME = 0.075;
 
-type GameStage = "intro" | "specs" | "coach" | "play" | "rewardVideo" | "results";
+/** Paso 1 Specs (Figma): solo "Persons" es elegible en esta pantalla */
+const SPECS_STEP1_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: "persons", label: "Persons" },
+  { id: "places", label: "Places" },
+  { id: "objects", label: "Objects" },
+  { id: "pets", label: "Pets" },
+  { id: "events", label: "Events" },
+  { id: "other", label: "Other" },
+];
+
+type GameStage =
+  | "intro"
+  | "specs1"
+  | "specs2"
+  | "specs3"
+  | "coach"
+  | "play"
+  | "rewardVideo"
+  | "results";
+
+/** Para saltar a una etapa con ?stage= (solo desarrollo / preview) */
+const STAGES_FROM_QUERY: readonly GameStage[] = [
+  "intro",
+  "specs1",
+  "specs2",
+  "specs3",
+  "coach",
+  "play",
+  "rewardVideo",
+  "results",
+] as const;
+
+type GameDifficulty = "easy" | "medium";
+
+type GameConfig = {
+  secondsPerRound: number;
+  difficulty: GameDifficulty;
+};
 
 export default function GamePage() {
   const [stage, setStage] = useState<GameStage>("intro");
   const [isMuted, setIsMuted] = useState<boolean>(false); // Por defecto sonido encendido
   const [mounted, setMounted] = useState(false);
+  const [gameConfig, setGameConfig] = useState<GameConfig>({
+    secondsPerRound: 58,
+    difficulty: "medium",
+  });
   const bgAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /** Atajo: /game?stage=results (o play, rewardVideo, etc.) sin recorrer el flujo */
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("stage");
+      if (!raw) return;
+      if ((STAGES_FROM_QUERY as readonly string[]).includes(raw)) {
+        setStage(raw as GameStage);
+      }
+    } catch {
+      // ignore
+    }
+  }, [mounted]);
 
   // Al montar en cliente: restaurar preferencia de mute desde localStorage (persiste en toda la app)
   useEffect(() => {
@@ -47,9 +105,14 @@ export default function GamePage() {
     let startOnInteraction: (() => void) | null = null;
 
     const tryPlay = () => {
-      audio.play().catch(() => {
+      const runPlay = () => {
+        const p = audio.play();
+        if (p === undefined) return Promise.resolve();
+        return p;
+      };
+      runPlay().catch(() => {
         startOnInteraction = () => {
-          audio.play().catch(() => {});
+          void runPlay().catch(() => {});
           if (startOnInteraction) {
             window.removeEventListener("pointerdown", startOnInteraction);
           }
@@ -95,23 +158,70 @@ export default function GamePage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <Background />
-      <div className="relative z-10 w-full min-h-screen">
+    <div
+      className={
+        stage === "results"
+          ? "relative h-screen overflow-hidden"
+          : stage === "play"
+            ? "relative game-viewport-lock overflow-hidden"
+            : "relative min-h-screen overflow-hidden"
+      }
+    >
+      {/* Resultados: fondo propio (Figma); evita el aro/halos del resto del juego */}
+      {stage !== "results" && <Background />}
+      <div
+        className={
+          stage === "results"
+            ? "relative z-10 h-full min-h-0 w-full"
+            : stage === "play"
+              ? "relative z-10 h-full min-h-0 w-full overflow-hidden"
+              : "relative z-10 h-full min-h-screen w-full"
+        }
+      >
         {stage === "intro" && (
           <GameDescriptionScreen
             highScore={0}
-            difficulty={4}
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted((m) => !m)}
-            onStart={() => setStage("specs")}
+            onCustomStart={(settings) => {
+              setGameConfig(settings);
+              setStage("specs1");
+            }}
+            onQuickPlayStart={(settings) => {
+              setGameConfig(settings);
+              setStage("specs1");
+            }}
             embedded
           />
         )}
-        {stage === "specs" && (
+        {stage === "specs1" && (
           <SpecsScreen
-            onContinue={() => setStage("coach")}
+            onContinue={() => setStage("specs2")}
             onBack={() => setStage("intro")}
+            isMuted={isMuted}
+            onMuteToggle={() => setIsMuted((m) => !m)}
+            title="Select your Focus Group or Groups"
+            subtitle="Select up to 3 topics"
+            options={SPECS_STEP1_OPTIONS}
+            onlySelectableLabel="Persons"
+            tipLabel="TIP"
+            tipText="Match each photo with best answer to the question. Be fast."
+            showStartRandomGamePlaceholder
+            showStepIndicator={false}
+          />
+        )}
+        {stage === "specs2" && (
+          <SpecsStep2PracticeScreen
+            onContinue={() => setStage("specs3")}
+            onBack={() => setStage("specs1")}
+            isMuted={isMuted}
+            onMuteToggle={() => setIsMuted((m) => !m)}
+          />
+        )}
+        {stage === "specs3" && (
+          <SpecsStep3TopicScreen
+            onContinue={() => setStage("coach")}
+            onBack={() => setStage("specs2")}
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted((m) => !m)}
           />
@@ -125,6 +235,8 @@ export default function GamePage() {
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted((m) => !m)}
             onContinueFromEndgame={() => setStage("rewardVideo")}
+            initialRoundSeconds={gameConfig.secondsPerRound}
+            difficulty={gameConfig.difficulty}
           />
         )}
         {stage === "rewardVideo" && (
