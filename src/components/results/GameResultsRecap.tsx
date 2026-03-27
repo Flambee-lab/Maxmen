@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Background } from "@/components/game/Background";
+import { VictoryConfetti } from "@/components/game/VictoryConfetti";
 import { CardStage } from "@/components/game/CardStage";
 import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
 import { PauseMenu } from "@/components/game/PauseMenu";
@@ -49,6 +50,7 @@ export function GameResultsRecap({
   return (
     <div className="game-viewport-lock relative flex h-full w-full flex-col overflow-hidden text-white">
       <Background />
+      <VictoryConfetti intensity="full" />
 
       <div className="relative z-10 flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
         <TopHUD
@@ -64,40 +66,40 @@ export function GameResultsRecap({
         />
 
         <main
-          className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-4 pb-[180px] pt-2"
+          className="relative flex min-h-0 flex-1 flex-col items-center overflow-y-auto overflow-x-hidden px-4 pb-[180px] pt-2"
           style={{ marginTop: 0 }}
         >
-          <div className="flex w-full max-w-[1200px] shrink-0 items-center justify-center px-2 pb-5 pt-1">
+          <div className="m-auto flex w-full max-w-[1200px] shrink-0 flex-col items-center justify-center gap-4 px-2 py-4">
             <p
-              className="w-full text-center font-bitter text-[clamp(22px,4vw,28px)] font-bold leading-tight text-white"
+              className="w-full text-center font-bitter text-[clamp(26px,4vw,32px)] font-bold leading-tight text-white"
               style={{ fontFamily: "var(--font-bitter), serif" }}
             >
               You completed the game!
             </p>
-          </div>
 
-          <div className="flex w-full max-w-[1200px] min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto">
-            <CardStage
-              cards={cards}
-              highlightedCardId={null}
-              cardStatus={{}}
-              resolvedByCard={resolvedByCard}
-              cardFeedback={{}}
-              onCardHover={() => {}}
-              onCardDrop={() => {}}
-              animateMount={false}
-              showSlotArrow={false}
-              activeOriginCardId={null}
-              showConnectSlotWhenResolved={showRel}
-              relationshipByCard={showRel ? relationshipByCard : {}}
-              keepConnectorWhenRelationship={showBirth}
-              resolvedConnectorExtraOffsetPx={showBirth ? 22 : 0}
-              birthDateByCard={showBirth ? birthDateByCard : {}}
-              cardContentLinesByCard={cardContentLinesByCard}
-              round={finalRound}
-              photosOnly={false}
-              endgameSuccessPresentation
-            />
+            <div className="flex w-full min-h-0 flex-col items-center justify-center">
+              <CardStage
+                cards={cards}
+                highlightedCardId={null}
+                cardStatus={{}}
+                resolvedByCard={resolvedByCard}
+                cardFeedback={{}}
+                onCardHover={() => {}}
+                onCardDrop={() => {}}
+                animateMount={false}
+                showSlotArrow={false}
+                activeOriginCardId={null}
+                showConnectSlotWhenResolved={showRel}
+                relationshipByCard={showRel ? relationshipByCard : {}}
+                keepConnectorWhenRelationship={showBirth}
+                resolvedConnectorExtraOffsetPx={showBirth ? 22 : 0}
+                birthDateByCard={showBirth ? birthDateByCard : {}}
+                cardContentLinesByCard={cardContentLinesByCard}
+                round={finalRound}
+                photosOnly={false}
+                endgameSuccessPresentation
+              />
+            </div>
           </div>
         </main>
 
