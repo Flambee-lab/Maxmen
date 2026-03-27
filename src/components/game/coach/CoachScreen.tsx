@@ -11,13 +11,13 @@ import {
   COACH_CHIP_SPOTLIGHT_WIDTH_PX,
   COACH_CARD_WIDTH_PX,
   COACH_MIDDLE_CARD_LEFT_OFFSET_PX,
-  COACH_PAUSE_BUTTON_SIZE_PX,
   COACH_SPOTLIGHT_FOCUS_PADDING_PX,
   COACH_SPOTLIGHT_RADIUS_PX,
   COACH_SPOTLIGHT_WIDTH_PX,
 } from "@/components/game/coach/coachLayout";
 import { CoachConnectTomSpotlightFrame } from "@/components/game/coach/CoachConnectTomSpotlightFrame";
 import { CoachLightbulbsSpotlightFrame } from "@/components/game/coach/CoachLightbulbsSpotlightFrame";
+import { CoachPauseSpotlightFrame } from "@/components/game/coach/CoachPauseSpotlightFrame";
 import { CoachVeloOverlay, useCoachSpotlightMask } from "@/components/game/coach/CoachVeloOverlay";
 import { COACH_STEP_COUNT, COACH_STEPS } from "@/components/game/coach/coachSteps";
 import { CardStage } from "@/components/game/CardStage";
@@ -196,39 +196,11 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
         />
       ) : null}
       {spotlightIsPauseButton ? (
-        <div
+        <CoachPauseSpotlightFrame
           key={`coach-spotlight-pause-${stepIndex}`}
-          className="absolute inset-0 pointer-events-none"
-          style={{ zIndex: 3 }}
-        >
-          <div className="relative z-10 flex w-full items-center py-4 px-6">
-            <div className="absolute right-6">
-              <div
-                className="flex items-center"
-                style={{ gap: "12px" }}
-              >
-                <div
-                  aria-hidden
-                  className="pointer-events-none shrink-0"
-                  style={{
-                    width: `${COACH_PAUSE_BUTTON_SIZE_PX}px`,
-                    height: `${COACH_PAUSE_BUTTON_SIZE_PX}px`,
-                  }}
-                />
-                <div
-                  aria-hidden
-                  className="coach-spotlight-frame"
-                  data-coach-overlay-hole
-                  style={{
-                    width: `${COACH_PAUSE_BUTTON_SIZE_PX + focusPad2}px`,
-                    height: `${COACH_PAUSE_BUTTON_SIZE_PX + focusPad2}px`,
-                    borderRadius: "36px",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+          coachRef={coachRef}
+          stepKey={`${stepIndex}-pause`}
+        />
       ) : null}
 
       {/* Layer 4: Coach header */}

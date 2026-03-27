@@ -17,8 +17,8 @@ interface TopHUDProps {
   totalCards?: number;
   onPauseClick: () => void;
   onMuteToggle: () => void;
-  /** Coach Lightbulbs: marca el contenedor de Lives para medir el spotlight */
-  coachLivesTarget?: boolean;
+  /** Coach (preview): marca Lives y Pause para medir spotlights del tutorial */
+  coachHudMeasureTargets?: boolean;
 }
 
 export function TopHUD({
@@ -31,7 +31,7 @@ export function TopHUD({
   totalCards = 4,
   onPauseClick,
   onMuteToggle,
-  coachLivesTarget = false,
+  coachHudMeasureTargets = false,
 }: TopHUDProps) {
   const isLowTime =
     mode === "play" && elapsedSeconds <= lowTimeThreshold;
@@ -42,11 +42,11 @@ export function TopHUD({
       {(mode === "play" || mode === "results") && (
         <div
           className={
-            coachLivesTarget
+            coachHudMeasureTargets
               ? "absolute left-6 top-1/2 -translate-y-1/2"
               : "absolute left-6"
           }
-          {...(coachLivesTarget ? ({ "data-coach-lives-target": "" } as const) : {})}
+          {...(coachHudMeasureTargets ? ({ "data-coach-lives-target": "" } as const) : {})}
         >
           <Lives lives={lives} maxLives={5} />
         </div>
@@ -64,7 +64,13 @@ export function TopHUD({
 
       {/* RIGHT - Sound + Pause (play, resultados recap: mismo control que en partida) */}
       {(mode === "play" || mode === "results") && (
-        <div className="absolute right-6">
+        <div
+          className={
+            coachHudMeasureTargets
+              ? "absolute right-6 top-1/2 -translate-y-1/2"
+              : "absolute right-6"
+          }
+        >
           <div
             style={{
               display: "flex",
@@ -73,7 +79,13 @@ export function TopHUD({
             }}
           >
             <SoundButton isMuted={isMuted} onClick={onMuteToggle} />
-            <PauseButton onClick={onPauseClick} />
+            <div
+              {...(coachHudMeasureTargets
+                ? ({ "data-coach-pause-target": "" } as const)
+                : {})}
+            >
+              <PauseButton onClick={onPauseClick} />
+            </div>
           </div>
         </div>
       )}

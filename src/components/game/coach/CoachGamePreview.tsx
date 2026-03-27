@@ -59,7 +59,7 @@ export function CoachGamePreview({
           isMuted={false}
           onPauseClick={() => {}}
           onMuteToggle={() => {}}
-          coachLivesTarget
+          coachHudMeasureTargets
         />
 
         <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
