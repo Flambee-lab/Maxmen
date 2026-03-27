@@ -15,24 +15,24 @@ export default function ContentNewTopicPage() {
 
   if (!topic) {
     return (
-      <ContentShell title="Tipo no válido">
-        <p className="mb-6 text-white/75">Ese tipo de contenido no existe.</p>
+      <ContentShell title="Invalid type">
+        <p className="mb-6 text-white/75">That content type does not exist.</p>
         <Link
           href="/content/new"
           className="text-[#a3bff9] underline hover:text-white"
         >
-          Volver a elegir tipo
+          Choose a type again
         </Link>
       </ContentShell>
     );
   }
 
   return (
-    <ContentShell title={`Nuevo: ${TOPIC_LABELS[topic]}`}>
+    <ContentShell title={`New: ${TOPIC_LABELS[topic]}`}>
       <ContentForm mode="create" topic={topic} />
       <p className="mt-10 text-center text-sm text-white/50">
         <Link href="/content/new" className="underline hover:text-white/80">
-          Cambiar tipo
+          Change type
         </Link>
       </p>
     </ContentShell>

@@ -23,9 +23,9 @@ export default function ContentEditPage() {
 
   if (item === undefined) {
     return (
-      <ContentShell title="Editar contenido">
+      <ContentShell title="Edit content">
         <p className="text-white/70" role="status">
-          Cargando…
+          Loading…
         </p>
       </ContentShell>
     );
@@ -33,20 +33,20 @@ export default function ContentEditPage() {
 
   if (item === null) {
     return (
-      <ContentShell title="No encontrado">
-        <p className="mb-6 text-white/75">No hay ningún ítem con ese id.</p>
+      <ContentShell title="Not found">
+        <p className="mb-6 text-white/75">There is no item with that id.</p>
         <Link
           href="/content"
           className="text-[#a3bff9] underline hover:text-white"
         >
-          Ir al listado
+          Go to list
         </Link>
       </ContentShell>
     );
   }
 
   return (
-    <ContentShell title={`Editar: ${TOPIC_LABELS[item.topic]}`}>
+    <ContentShell title={`Edit: ${TOPIC_LABELS[item.topic]}`}>
       <ContentForm mode="edit" topic={item.topic} initialItem={item} />
     </ContentShell>
   );

@@ -19,13 +19,13 @@ export function ContentShell({
               href="/content"
               className="rounded-lg px-2 py-1 transition hover:bg-white/10 hover:text-white"
             >
-              Contenido
+              Content
             </Link>
             <Link
               href="/game"
               className="rounded-lg px-2 py-1 transition hover:bg-white/10 hover:text-white"
             >
-              Ir al juego
+              Go to game
             </Link>
           </nav>
         </div>

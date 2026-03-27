@@ -260,8 +260,7 @@ export function SpecsStep3TopicScreen({
             margin: 0,
           }}
         >
-          Select up to {MAX_GAME_ROUNDS} rounds (one topic + field each). Order =
-          round order.
+          Select up to {MAX_GAME_ROUNDS}
         </p>
 
         {/* Contexto del paso anterior: contenedor suave (no mismo lenguaje que los chips clicables) */}

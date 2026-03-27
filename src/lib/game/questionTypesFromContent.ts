@@ -123,8 +123,9 @@ export function buildPersonQuestionOptions(
 const COMPOSITE_SEP = "::";
 
 /**
- * Opciones para el paso 3 con topics combinados: cada chip es `topic::questionId`
- * y se muestra como "Persons — Name", "Places — Location", etc.
+ * Opciones para el paso 3: cada chip sigue siendo `topic::questionId`.
+ * Con más de un topic en Step 1, el label incluye prefijo ("Persons — Name");
+ * con un solo topic, solo el tipo de pregunta ("Name").
  */
 export function buildMixedRoundQuestionOptions(
   pool: ContentItem[],
@@ -133,6 +134,7 @@ export function buildMixedRoundQuestionOptions(
   const topics = selectedTopicIds.filter((t): t is Topic => isTopic(t));
   if (topics.length === 0 || pool.length === 0) return [];
 
+  const showTopicPrefix = topics.length > 1;
   const out: { id: string; label: string }[] = [];
   const seen = new Set<string>();
 
@@ -153,7 +155,9 @@ export function buildMixedRoundQuestionOptions(
       seen.add(compositeId);
       out.push({
         id: compositeId,
-        label: `${TOPIC_LABELS[topic]} — ${o.label}`,
+        label: showTopicPrefix
+          ? `${TOPIC_LABELS[topic]} — ${o.label}`
+          : o.label,
       });
     }
   }

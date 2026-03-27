@@ -34,7 +34,7 @@ export function ContentList() {
   }, [load]);
 
   async function handleDelete(id: string) {
-    if (!confirm("¿Eliminar este ítem?")) return;
+    if (!confirm("Delete this item?")) return;
     await getContentRepository().delete(id);
     void load();
   }
@@ -42,7 +42,7 @@ export function ContentList() {
   if (loading) {
     return (
       <p className="text-white/70" role="status">
-        Cargando…
+        Loading…
       </p>
     );
   }
@@ -50,7 +50,7 @@ export function ContentList() {
   if (items.length === 0) {
     return (
       <p className="text-white/70">
-        Todavía no cargaste contenido. Creá el primer ítem para empezar.
+        No content yet. Add your first item to get started.
       </p>
     );
   }
@@ -73,7 +73,7 @@ export function ContentList() {
                 />
               ) : (
                 <span className="flex h-full items-center justify-center text-xs text-white/40">
-                  Sin foto
+                  No photo
                 </span>
               )}
             </div>
@@ -83,7 +83,7 @@ export function ContentList() {
                 {TOPIC_LABELS[item.topic]}
               </p>
               <p className="text-xs text-white/40">
-                Actualizado{" "}
+                Updated{" "}
                 {new Date(item.updatedAt).toLocaleString(undefined, {
                   dateStyle: "short",
                   timeStyle: "short",
@@ -96,14 +96,14 @@ export function ContentList() {
               href={`/content/${item.id}/edit`}
               className="rounded-xl border border-white/25 px-4 py-2 text-sm font-medium transition hover:bg-white/10"
             >
-              Editar
+              Edit
             </Link>
             <button
               type="button"
               onClick={() => void handleDelete(item.id)}
               className="rounded-xl border border-red-400/40 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
             >
-              Borrar
+              Delete
             </button>
           </div>
         </li>

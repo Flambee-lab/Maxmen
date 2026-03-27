@@ -33,7 +33,9 @@ function fileToDataUrl(file: File): Promise<string> {
 async function readPhotoFile(file: File | null): Promise<string | null> {
   if (!file) return null;
   if (file.size > 2.5 * 1024 * 1024) {
-    alert("La imagen es muy grande para guardarla localmente. Probá con una más chica (≤ 2,5 MB).");
+    alert(
+      "This image is too large to store locally. Try a smaller file (≤ 2.5 MB)."
+    );
     return null;
   }
   return fileToDataUrl(file);
@@ -56,7 +58,9 @@ export function ContentForm({
     initialItem?.photoDataUrl ?? null
   );
   const [photoHint, setPhotoHint] = useState(
-    initialItem?.photoDataUrl ? "Hay una foto guardada. Elegí otra para reemplazarla." : ""
+    initialItem?.photoDataUrl
+      ? "A photo is already saved. Choose another file to replace it."
+      : ""
   );
 
   const [subgroup, setSubgroup] = useState<PersonSubgroup>(
@@ -118,7 +122,7 @@ export function ContentForm({
       const data = await readPhotoFile(file);
       if (data) {
         setPhotoDataUrl(data);
-        setPhotoHint("Foto lista para guardar.");
+        setPhotoHint("Photo ready to save.");
       }
     },
     []
@@ -293,7 +297,7 @@ export function ContentForm({
     e.preventDefault();
     const item = buildItem();
     if (!item) {
-      alert("El nombre es obligatorio.");
+      alert("Name is required.");
       return;
     }
     setSaving(true);
@@ -307,7 +311,7 @@ export function ContentForm({
       router.refresh();
     } catch (err) {
       console.error(err);
-      alert("No se pudo guardar. Probá de nuevo.");
+      alert("Could not save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -321,7 +325,7 @@ export function ContentForm({
 
       <div>
         <label className={labelClass} htmlFor="photo">
-          Foto
+          Photo
         </label>
         <input
           id="photo"
@@ -343,7 +347,7 @@ export function ContentForm({
 
       <div>
         <label className={labelClass} htmlFor="name">
-          Nombre / etiqueta <span className="text-red-300">*</span>
+          Name / label <span className="text-red-300">*</span>
         </label>
         <input
           id="name"
@@ -351,7 +355,7 @@ export function ContentForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={inputClass}
-          placeholder="Ej. Mamá, Casa de la playa…"
+          placeholder="e.g. Mom, Beach house…"
         />
       </div>
 
@@ -359,7 +363,7 @@ export function ContentForm({
         <>
           <div>
             <label className={labelClass} htmlFor="subgroup">
-              Subgrupo
+              Subgroup
             </label>
             <select
               id="subgroup"
@@ -376,7 +380,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="relationship">
-              Relación
+              Relationship
             </label>
             <input
               id="relationship"
@@ -387,7 +391,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="birthday">
-              Cumpleaños
+              Birthday
             </label>
             <input
               id="birthday"
@@ -399,7 +403,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="occupation">
-              Ocupación
+              Occupation
             </label>
             <input
               id="occupation"
@@ -410,7 +414,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="lives_in">
-              Vive en
+              Lives in
             </label>
             <input
               id="lives_in"
@@ -421,7 +425,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="anniversary">
-              Aniversario
+              Anniversary
             </label>
             <input
               id="anniversary"
@@ -432,7 +436,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="spouse_name">
-              Nombre del cónyuge
+              Spouse name
             </label>
             <input
               id="spouse_name"
@@ -443,7 +447,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="children_names">
-              Nombres de hijos/as
+              Children&apos;s names
             </label>
             <input
               id="children_names"
@@ -454,7 +458,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="show_appearances">
-              Apariciones / shows
+              Appearances / shows
             </label>
             <textarea
               id="show_appearances"
@@ -470,7 +474,7 @@ export function ContentForm({
       {topic === "places" && (
         <div>
           <label className={labelClass} htmlFor="specific_location">
-            Ubicación específica
+            Specific location
           </label>
           <input
             id="specific_location"
@@ -484,7 +488,7 @@ export function ContentForm({
       {topic === "objects" && (
         <div>
           <label className={labelClass} htmlFor="purpose">
-            Propósito / uso
+            Purpose / use
           </label>
           <input
             id="purpose"
@@ -498,7 +502,7 @@ export function ContentForm({
       {topic === "pets" && (
         <div>
           <label className={labelClass} htmlFor="breed_or_type">
-            Raza o tipo
+            Breed or type
           </label>
           <input
             id="breed_or_type"
@@ -513,7 +517,7 @@ export function ContentForm({
         <>
           <div>
             <label className={labelClass} htmlFor="event_type">
-              Tipo de evento
+              Event type
             </label>
             <input
               id="event_type"
@@ -524,7 +528,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="event_for_who">
-              Evento para quién
+              Event for who
             </label>
             <input
               id="event_for_who"
@@ -535,7 +539,7 @@ export function ContentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="event_for_what">
-              Evento para qué
+              Event for what
             </label>
             <input
               id="event_for_what"
@@ -550,7 +554,7 @@ export function ContentForm({
       {topic === "others" && (
         <div>
           <label className={labelClass} htmlFor="description">
-            Descripción
+            Description
           </label>
           <textarea
             id="description"
@@ -568,14 +572,14 @@ export function ContentForm({
           disabled={saving}
           className="rounded-2xl bg-[#5a7dab] px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-[#6b8fc0] disabled:opacity-50"
         >
-          {saving ? "Guardando…" : mode === "create" ? "Guardar" : "Actualizar"}
+          {saving ? "Saving…" : mode === "create" ? "Save" : "Update"}
         </button>
         <button
           type="button"
           onClick={() => router.push("/content")}
           className="rounded-2xl border border-white/25 px-6 py-3 font-medium text-white/90 transition hover:bg-white/10"
         >
-          Cancelar
+          Cancel
         </button>
       </div>
     </form>
