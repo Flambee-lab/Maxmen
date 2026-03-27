@@ -1168,6 +1168,7 @@ export function GameScreen({
           );
 
     return {
+      outcome: isTimeUpEndgame ? "timeUp" : "victory",
       remainingSeconds,
       lives: gameState.lives,
       cards: gameState.cards,
@@ -1181,6 +1182,7 @@ export function GameScreen({
     };
   }, [
     cardContentLinesByCard,
+    isTimeUpEndgame,
     remainingSeconds,
     gameState.lives,
     gameState.cards,
@@ -1216,10 +1218,12 @@ export function GameScreen({
     round,
   ]);
 
-  // Auto-progresión tras el reveal de timeout (última ronda → snapshot + resultados)
+  // Auto-progresión tras timeout: rondas 1–2 → siguiente ronda tras TIME_UP_DISPLAY_MS;
+  // última ronda → resultados (flujo “Oops” + recap) sin esperar 6s en pantalla de juego.
   useEffect(() => {
     const isTimeUp = gameState.showSuccess && gameState.successReason === "timeUp";
     if (!isTimeUp) return;
+    const delay = round < maxRounds ? TIME_UP_DISPLAY_MS : 0;
     const t = setTimeout(() => {
       if (round < maxRounds) {
         if (round === 1) {
@@ -1244,7 +1248,7 @@ export function GameScreen({
 
       if (onContinueFromEndgame) onContinueFromEndgame(buildEndgameSnapshot());
       else handleRestart();
-    }, TIME_UP_DISPLAY_MS);
+    }, delay);
 
     return () => clearTimeout(t);
   }, [
@@ -1358,7 +1362,9 @@ export function GameScreen({
         }
       >
         <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden">
-          {gamePhase !== "transition" && !isSuccessEndgame && (
+          {gamePhase !== "transition" &&
+            !isSuccessEndgame &&
+            !(isTimeUpEndgame && round === maxRounds) && (
             <TopHUD
               lives={gameState.lives}
               elapsedSeconds={remainingSeconds}
@@ -1378,7 +1384,7 @@ export function GameScreen({
               ...(isTimeUpEndgame ? { paddingBottom: "48px" } : {}),
             }}
           >
-            {isTimeUpEndgame ? (
+            {isTimeUpEndgame && round < maxRounds ? (
               <>
                 <p
                   style={{
@@ -1391,20 +1397,18 @@ export function GameScreen({
                 >
                   Time&apos;s up
                 </p>
-                {round < maxRounds ? (
-                  <p
-                    style={{
-                      fontFamily: "var(--font-bitter), serif",
-                      fontWeight: 600,
-                      fontSize: "20px",
-                      color: "rgba(255, 255, 255, 0.85)",
-                      textAlign: "center",
-                      marginTop: "12px",
-                    }}
-                  >
-                    Next round…
-                  </p>
-                ) : null}
+                <p
+                  style={{
+                    fontFamily: "var(--font-bitter), serif",
+                    fontWeight: 600,
+                    fontSize: "20px",
+                    color: "rgba(255, 255, 255, 0.85)",
+                    textAlign: "center",
+                    marginTop: "12px",
+                  }}
+                >
+                  Next round…
+                </p>
                 {(showCardsAndChips || isFinalScreen) && (
                   <div ref={canvasRef} style={{ marginTop: "32px", width: "100%", maxWidth: "1200px" }}>
                     <CardStage
@@ -1432,6 +1436,8 @@ export function GameScreen({
                   </div>
                 )}
               </>
+            ) : isTimeUpEndgame && round === maxRounds ? (
+              <div className="min-h-0 w-full flex-1 shrink-0" aria-hidden />
             ) : isSuccessEndgame ? (
               /* Overlay fijo centrado (globals); sin Continue — avanza solo tras VICTORY_GOOD_JOB_AUTO_MS */
               <div className="relative min-h-[min(60vh,520px)] w-full flex-1 shrink-0">

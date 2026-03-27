@@ -5,6 +5,8 @@ import type { NameChip, PhotoCard } from "@/types/game";
  * (cartas + chips revelados, reloj congelado, etc.).
  */
 export type GameEndgameSnapshot = {
+  /** Victoria completa vs. tiempo agotado en la última ronda */
+  outcome: "victory" | "timeUp";
   remainingSeconds: number;
   lives: number;
   cards: PhotoCard[];
