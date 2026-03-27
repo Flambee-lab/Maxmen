@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { CoachGamePreview, COACH_CARDS, COACH_PREVIEW_CHIPS } from "@/components/game/coach/CoachGamePreview";
 import {
@@ -20,6 +20,7 @@ import {
   COACH_SPOTLIGHT_RADIUS_PX,
   COACH_SPOTLIGHT_WIDTH_PX,
 } from "@/components/game/coach/coachLayout";
+import { CoachVeloOverlay, useCoachSpotlightMask } from "@/components/game/coach/CoachVeloOverlay";
 import { COACH_STEP_COUNT, COACH_STEPS } from "@/components/game/coach/coachSteps";
 import { CardStage } from "@/components/game/CardStage";
 import { ChipRow } from "@/components/game/ChipRow";
@@ -34,6 +35,7 @@ interface CoachScreenProps {
  * Connect: solo marcos de iluminación; cards y chips vienen del preview (misma fila y altura).
  */
 export function CoachScreen({ onContinue }: CoachScreenProps) {
+  const coachRef = useRef<HTMLDivElement>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const step = COACH_STEPS[stepIndex];
   const isLastStep = stepIndex >= COACH_STEP_COUNT - 1;
@@ -45,6 +47,8 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
   const spotlightIsPauseButton = focus === "pauseButton";
   const focusPad = COACH_SPOTLIGHT_FOCUS_PADDING_PX;
   const focusPad2 = focusPad * 2;
+
+  const spotlightMaskStyle = useCoachSpotlightMask(coachRef, `${stepIndex}-${focus}`);
 
   const handleNext = () => {
     if (isLastStep) {
@@ -69,11 +73,14 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
   };
 
   return (
-    <div className="coach-screen relative w-full min-h-screen">
-      {/* Layer 1: preview completo atenuado por el velo */}
+    <div
+      ref={coachRef}
+      className="coach-screen relative isolate w-full min-h-screen"
+    >
+      {/* Layer 1: preview; misma máscara que el velo → en el foco no tapa el Background real */}
       <div
         className="pointer-events-none select-none absolute inset-0"
-        style={{ zIndex: 1 }}
+        style={{ zIndex: 1, ...spotlightMaskStyle }}
       >
         <CoachGamePreview
           skipBackground
@@ -83,21 +90,15 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
         />
       </div>
 
-      {/* Layer 2: velo degradado — alpha en el gradiente (no opacity global) para que cards/HUD se lean por detrás */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(to top, rgba(40, 75, 121, 0.62), rgba(0, 0, 0, 0.80))",
-          zIndex: 2,
-        }}
-      />
+      {/* Layer 2: velo degradado con la misma máscara */}
+      <CoachVeloOverlay maskStyle={spotlightMaskStyle} />
 
       {/* Layer 3: spotlight — cards o chips (encima del velo; el preview usa placeholder para no duplicar) */}
       {spotlightIsCards ? (
         <div
           key={`coach-spotlight-cards-${stepIndex}`}
           className="coach-spotlight-frame absolute pointer-events-none"
+          data-coach-overlay-hole
           style={{
             top: `${COACH_CARD_STAGE_TOP_PX - focusPad}px`,
             left: "50%",
@@ -123,6 +124,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
         <div
           key={`coach-spotlight-chips-${stepIndex}`}
           className="coach-spotlight-frame absolute pointer-events-none"
+          data-coach-overlay-hole
           style={{
             top: `${COACH_CHIP_SPOTLIGHT_TOP_PX - focusPad}px`,
             left: "50%",
@@ -151,6 +153,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
           <div
             key={`coach-spotlight-connect-card-${stepIndex}`}
             className="coach-spotlight-frame absolute pointer-events-none"
+            data-coach-overlay-hole
             aria-hidden
             style={{
               top: `${COACH_CARD_STAGE_TOP_PX - focusPad}px`,
@@ -165,6 +168,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
           <div
             key={`coach-spotlight-connect-chip-${stepIndex}`}
             className="coach-spotlight-frame absolute pointer-events-none"
+            data-coach-overlay-hole
             aria-hidden
             style={{
               top: `${COACH_CHIP_SPOTLIGHT_TOP_PX - focusPad}px`,
@@ -190,6 +194,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
               <div
                 aria-hidden
                 className="coach-spotlight-frame"
+                data-coach-overlay-hole
                 style={{
                   width: `${COACH_LIVES_ROW_WIDTH_PX + focusPad2}px`,
                   height: `${COACH_LIVES_ROW_HEIGHT_PX + focusPad2}px`,
@@ -223,6 +228,7 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
                 <div
                   aria-hidden
                   className="coach-spotlight-frame"
+                  data-coach-overlay-hole
                   style={{
                     width: `${COACH_PAUSE_BUTTON_SIZE_PX + focusPad2}px`,
                     height: `${COACH_PAUSE_BUTTON_SIZE_PX + focusPad2}px`,

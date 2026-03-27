@@ -979,16 +979,19 @@ body {
   }
 }
 
-/* ========== Coach: borde 10% blanco, sin sombra ni animación ========== */
+/* ========== Coach: marco tipo “ventana” — borde azul claro + halo suave (revelación del fondo) ========== */
 .coach-spotlight-frame {
   box-sizing: border-box;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(163, 191, 249, 0.55);
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: none;
+  box-shadow:
+    0 0 0 1px rgba(76, 118, 190, 0.25),
+    0 0 28px rgba(76, 118, 190, 0.35),
+    0 0 48px rgba(163, 191, 249, 0.12);
 }
 
 .coach-spotlight-frame__clip {
