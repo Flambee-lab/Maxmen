@@ -17,6 +17,8 @@ interface TopHUDProps {
   totalCards?: number;
   onPauseClick: () => void;
   onMuteToggle: () => void;
+  /** Coach Lightbulbs: marca el contenedor de Lives para medir el spotlight */
+  coachLivesTarget?: boolean;
 }
 
 export function TopHUD({
@@ -29,6 +31,7 @@ export function TopHUD({
   totalCards = 4,
   onPauseClick,
   onMuteToggle,
+  coachLivesTarget = false,
 }: TopHUDProps) {
   const isLowTime =
     mode === "play" && elapsedSeconds <= lowTimeThreshold;
@@ -37,7 +40,14 @@ export function TopHUD({
     <div className="relative z-10 w-full flex items-center py-4 px-6">
       {/* LEFT - Lives (play y resultados; oculto en reveal) */}
       {(mode === "play" || mode === "results") && (
-        <div className="absolute left-6">
+        <div
+          className={
+            coachLivesTarget
+              ? "absolute left-6 top-1/2 -translate-y-1/2"
+              : "absolute left-6"
+          }
+          {...(coachLivesTarget ? ({ "data-coach-lives-target": "" } as const) : {})}
+        >
           <Lives lives={lives} maxLives={5} />
         </div>
       )}

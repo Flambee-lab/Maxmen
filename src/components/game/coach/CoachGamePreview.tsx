@@ -40,7 +40,7 @@ interface CoachGamePreviewProps {
  * Preview completo del juego para CoachScreen: mismo UI que stage="play" pero con 3 cards y N-1 chips.
  * Todo queda detrás del overlay; las fotos y el HUD se ven atenuados como el resto.
  * Pasos cards/chips (fila completa): highlight vía spotlight en CoachScreen (omitCardStage / omitChips).
- * Connect: solo marco de iluminación encima del velo; el contenido es este preview.
+ * Connect: el preview sigue mostrando todas las cards y chips (atenuados); la carta/chip del foco se duplica en CoachScreen encima del velo.
  */
 export function CoachGamePreview({
   skipBackground = true,
@@ -59,6 +59,7 @@ export function CoachGamePreview({
           isMuted={false}
           onPauseClick={() => {}}
           onMuteToggle={() => {}}
+          coachLivesTarget
         />
 
         <main className="flex flex-col items-center w-full" style={{ marginTop: "58px" }}>
@@ -113,6 +114,7 @@ export function CoachGamePreview({
                 selectedChipId={null}
                 onChipHover={() => {}}
                 onChipClick={() => {}}
+                coachTargetChipId="chip-2"
               />
             )}
           </div>

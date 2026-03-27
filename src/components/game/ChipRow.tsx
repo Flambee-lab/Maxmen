@@ -15,6 +15,8 @@ interface ChipRowProps {
   hideChipArrows?: boolean;
   /** Chip actualmente activo (modo chip → card); su flecha se dibuja en overlay; el resto usa arrowOpacity */
   activeChipId?: string | null;
+  /** Coach Connect: id del chip cuyo wrapper lleva data-coach-tom-target para alinear el spotlight */
+  coachTargetChipId?: string | null;
 }
 
 export function ChipRow({
@@ -27,6 +29,7 @@ export function ChipRow({
   chipRef,
   hideChipArrows = false,
   activeChipId = null,
+  coachTargetChipId = null,
 }: ChipRowProps) {
   return (
     <div className="relative z-10 flex items-center justify-center gap-[16px]">
@@ -36,6 +39,9 @@ export function ChipRow({
           className="game-chip-enter"
           // Stagger escalonado: entra 1 por 1 como una escalera
           style={{ animationDelay: `${idx * 170}ms` }}
+          {...(coachTargetChipId !== null && chip.id === coachTargetChipId
+            ? { "data-coach-tom-target": "" as const }
+            : {})}
         >
           <Chip
             label={chip.name}

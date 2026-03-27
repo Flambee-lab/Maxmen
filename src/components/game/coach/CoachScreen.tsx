@@ -9,17 +9,15 @@ import {
   COACH_CHIP_SPOTLIGHT_HEIGHT_PX,
   COACH_CHIP_SPOTLIGHT_TOP_PX,
   COACH_CHIP_SPOTLIGHT_WIDTH_PX,
-  COACH_CONNECT_CHIP_CENTER_OFFSET_FROM_VIEWPORT_CENTER_PX,
-  COACH_CONNECT_SINGLE_CHIP_SPOTLIGHT_WIDTH_PX,
   COACH_CARD_WIDTH_PX,
   COACH_MIDDLE_CARD_LEFT_OFFSET_PX,
-  COACH_LIVES_ROW_HEIGHT_PX,
-  COACH_LIVES_ROW_WIDTH_PX,
   COACH_PAUSE_BUTTON_SIZE_PX,
   COACH_SPOTLIGHT_FOCUS_PADDING_PX,
   COACH_SPOTLIGHT_RADIUS_PX,
   COACH_SPOTLIGHT_WIDTH_PX,
 } from "@/components/game/coach/coachLayout";
+import { CoachConnectTomSpotlightFrame } from "@/components/game/coach/CoachConnectTomSpotlightFrame";
+import { CoachLightbulbsSpotlightFrame } from "@/components/game/coach/CoachLightbulbsSpotlightFrame";
 import { CoachVeloOverlay, useCoachSpotlightMask } from "@/components/game/coach/CoachVeloOverlay";
 import { COACH_STEP_COUNT, COACH_STEPS } from "@/components/game/coach/coachSteps";
 import { CardStage } from "@/components/game/CardStage";
@@ -32,7 +30,7 @@ interface CoachScreenProps {
 
 /**
  * CoachScreen: tablero detrás de un velo degradado; spotlight encima del velo (cards, chips, Connect, etc.).
- * Connect: solo marcos de iluminación; cards y chips vienen del preview (misma fila y altura).
+ * Connect: preview con fila completa; máscara del preview solo en la carta; Tom se ilumina sin duplicar (velo con agujero encima).
  */
 export function CoachScreen({ onContinue }: CoachScreenProps) {
   const coachRef = useRef<HTMLDivElement>(null);
@@ -48,7 +46,10 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
   const focusPad = COACH_SPOTLIGHT_FOCUS_PADDING_PX;
   const focusPad2 = focusPad * 2;
 
-  const spotlightMaskStyle = useCoachSpotlightMask(coachRef, `${stepIndex}-${focus}`);
+  const { previewMaskStyle, veloMaskStyle } = useCoachSpotlightMask(
+    coachRef,
+    `${stepIndex}-${focus}`
+  );
 
   const handleNext = () => {
     if (isLastStep) {
@@ -77,10 +78,10 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
       ref={coachRef}
       className="coach-screen relative isolate w-full min-h-screen"
     >
-      {/* Layer 1: preview; misma máscara que el velo → en el foco no tapa el Background real */}
+      {/* Layer 1: preview; en Connect solo agujero en carta (Tom viene una vez del ChipRow) */}
       <div
         className="pointer-events-none select-none absolute inset-0"
-        style={{ zIndex: 1, ...spotlightMaskStyle }}
+        style={{ zIndex: 1, ...previewMaskStyle }}
       >
         <CoachGamePreview
           skipBackground
@@ -90,8 +91,8 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
         />
       </div>
 
-      {/* Layer 2: velo degradado con la misma máscara */}
-      <CoachVeloOverlay maskStyle={spotlightMaskStyle} />
+      {/* Layer 2: velo con agujeros en todos los focos (carta + chip en Connect) */}
+      <CoachVeloOverlay maskStyle={veloMaskStyle} />
 
       {/* Layer 3: spotlight — cards o chips (encima del velo; el preview usa placeholder para no duplicar) */}
       {spotlightIsCards ? (
@@ -154,7 +155,6 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
             key={`coach-spotlight-connect-card-${stepIndex}`}
             className="coach-spotlight-frame absolute pointer-events-none"
             data-coach-overlay-hole
-            aria-hidden
             style={{
               top: `${COACH_CARD_STAGE_TOP_PX - focusPad}px`,
               left: `calc(50% - ${COACH_SPOTLIGHT_WIDTH_PX / 2}px + ${COACH_MIDDLE_CARD_LEFT_OFFSET_PX}px - ${focusPad}px)`,
@@ -164,46 +164,36 @@ export function CoachScreen({ onContinue }: CoachScreenProps) {
               borderRadius: `${COACH_SPOTLIGHT_RADIUS_PX + 4}px`,
               zIndex: 3,
             }}
-          />
-          <div
+          >
+            <div className="coach-spotlight-frame__clip">
+              <div
+                style={{
+                  width: `${COACH_SPOTLIGHT_WIDTH_PX}px`,
+                  marginLeft: `-${COACH_MIDDLE_CARD_LEFT_OFFSET_PX}px`,
+                }}
+              >
+                <CardStage
+                  cards={COACH_CARDS}
+                  highlightedCardId={null}
+                  onCardHover={() => {}}
+                  onCardDrop={() => {}}
+                />
+              </div>
+            </div>
+          </div>
+          <CoachConnectTomSpotlightFrame
             key={`coach-spotlight-connect-chip-${stepIndex}`}
-            className="coach-spotlight-frame absolute pointer-events-none"
-            data-coach-overlay-hole
-            aria-hidden
-            style={{
-              top: `${COACH_CHIP_SPOTLIGHT_TOP_PX - focusPad}px`,
-              left: `calc(50% + ${COACH_CONNECT_CHIP_CENTER_OFFSET_FROM_VIEWPORT_CENTER_PX}px - ${(COACH_CONNECT_SINGLE_CHIP_SPOTLIGHT_WIDTH_PX + focusPad2) / 2}px)`,
-              width: `${COACH_CONNECT_SINGLE_CHIP_SPOTLIGHT_WIDTH_PX + focusPad2}px`,
-              maxWidth: "92vw",
-              height: `${COACH_CHIP_SPOTLIGHT_HEIGHT_PX + focusPad2}px`,
-              borderRadius: `${COACH_SPOTLIGHT_RADIUS_PX + 4}px`,
-              zIndex: 3,
-            }}
+            coachRef={coachRef}
+            stepKey={`${stepIndex}-connect-tom`}
           />
         </>
       ) : null}
       {spotlightIsLightbulbs ? (
-        <div
+        <CoachLightbulbsSpotlightFrame
           key={`coach-spotlight-lives-${stepIndex}`}
-          className="absolute inset-0 pointer-events-none"
-          style={{ zIndex: 3 }}
-        >
-          {/* Misma caja que TopHUD: el marco coincide con las bombillas sin moverlas */}
-          <div className="relative z-10 flex w-full items-center py-4 px-6">
-            <div className="absolute left-6">
-              <div
-                aria-hidden
-                className="coach-spotlight-frame"
-                data-coach-overlay-hole
-                style={{
-                  width: `${COACH_LIVES_ROW_WIDTH_PX + focusPad2}px`,
-                  height: `${COACH_LIVES_ROW_HEIGHT_PX + focusPad2}px`,
-                  borderRadius: `${COACH_SPOTLIGHT_RADIUS_PX + 4}px`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
+          coachRef={coachRef}
+          stepKey={`${stepIndex}-lightbulbs`}
+        />
       ) : null}
       {spotlightIsPauseButton ? (
         <div
