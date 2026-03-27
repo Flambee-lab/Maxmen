@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import type { Topic } from "@/types/contentLibrary";
+import { isTopic } from "@/types/contentLibrary";
+import { TOPIC_LABELS } from "@/lib/game/specsOptionsFromContent";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { BackButton } from "@/components/game/BackButton";
@@ -169,7 +172,43 @@ export interface QuestionOption {
   label: string;
 }
 
+export interface QuestionOptionGroup {
+  topicId: Topic;
+  heading: string;
+  options: QuestionOption[];
+}
+
+/** Agrupa `topic::questionId` en el orden de Step 1 */
+export function groupQuestionOptionsByTopic(
+  questionOptions: QuestionOption[],
+  selectedTopicIds: string[]
+): QuestionOptionGroup[] {
+  const topics = selectedTopicIds.filter((t): t is Topic => isTopic(t));
+  const groups: QuestionOptionGroup[] = [];
+  for (const topicId of topics) {
+    const prefix = `${topicId}::`;
+    const opts = questionOptions.filter((o) => o.id.startsWith(prefix));
+    if (opts.length === 0) continue;
+    groups.push({
+      topicId,
+      heading: TOPIC_LABELS[topicId],
+      options: opts,
+    });
+  }
+  return groups;
+}
+
+/** En vista agrupada, el label sin prefijo "Topic — " */
+function shortLabelForGroupedOption(opt: QuestionOption): string {
+  const sep = " — ";
+  const idx = opt.label.indexOf(sep);
+  if (idx >= 0) return opt.label.slice(idx + sep.length).trim();
+  return opt.label;
+}
+
 interface SpecsStep3TopicScreenProps {
+  /** Topics elegidos en Step 1; si hay más de uno, layout combinación (dos columnas). */
+  selectedTopicIds: string[];
   /** Solo entradas con data en el pool actual */
   questionOptions: QuestionOption[];
   onContinue: (selected: TopicOptionId[]) => void;
@@ -183,6 +222,7 @@ interface SpecsStep3TopicScreenProps {
  * Specs paso 3 — tipos de pregunta según datos cargados (sin opciones vacías).
  */
 export function SpecsStep3TopicScreen({
+  selectedTopicIds,
   questionOptions,
   onContinue,
   onBack,
@@ -192,6 +232,15 @@ export function SpecsStep3TopicScreen({
 }: SpecsStep3TopicScreenProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<TopicOptionId[]>([]);
+
+  const isMultiTopic = selectedTopicIds.length > 1;
+  const topicGroups = useMemo(
+    () =>
+      isMultiTopic
+        ? groupQuestionOptionsByTopic(questionOptions, selectedTopicIds)
+        : [],
+    [isMultiTopic, questionOptions, selectedTopicIds]
+  );
 
   /**
    * Orden = orden de selección: 1.ª → Round 1, 2.ª → Round 2, 3.ª → Round 3.
@@ -210,23 +259,188 @@ export function SpecsStep3TopicScreen({
 
   const canContinue = selected.length >= 1;
 
-  return (
-    <div className="relative z-10 min-h-screen w-full overflow-hidden">
+  /** Ancho del panel derecho (multi-topic): un poco menos de mitad de pantalla */
+  const MULTI_RIGHT_PANEL_WIDTH = "44%";
+
+  const headerControls = (
+    <>
       {onBack && (
         <div
-          className="absolute left-6 z-20"
+          className="absolute left-6 z-30"
           style={{ top: `${HEADER_FOOTER_PADDING}px` }}
         >
           <BackButton onClick={onBack} />
         </div>
       )}
       <div
-        className="absolute right-6 z-20 flex items-center gap-3"
+        className="absolute right-6 z-30 flex items-center gap-3"
         style={{ top: `${HEADER_FOOTER_PADDING}px` }}
       >
         <SoundButton isMuted={isMuted} onClick={onMuteToggle} />
         <CloseButton onClick={() => router.push("/")} />
       </div>
+    </>
+  );
+
+  const titleBlock = (
+    <>
+      <h1
+        className={`w-full text-white ${isMultiTopic ? "text-left" : "text-center"}`}
+        style={{
+          fontFamily: "var(--font-bitter), serif",
+          fontWeight: 700,
+          fontSize: "48px",
+          color: "#FFFFFF",
+          lineHeight: 1.25,
+          marginBottom: "8px",
+        }}
+      >
+        What should we ask you about?
+      </h1>
+      <p
+        className={`w-full ${isMultiTopic ? "text-left" : "text-center"}`}
+        style={{
+          fontFamily: "var(--font-bitter), serif",
+          fontWeight: 500,
+          fontSize: "24px",
+          color: "rgba(255, 255, 255, 0.80)",
+          lineHeight: 1.4,
+          margin: 0,
+        }}
+      >
+        Select up to {MAX_GAME_ROUNDS}
+      </p>
+      <div
+        className={`mt-5 w-fit max-w-[min(560px,92vw)] ${isMultiTopic ? "mx-0 text-left" : "mx-auto text-center"}`}
+        style={{
+          padding: "10px 18px",
+          borderRadius: "12px",
+          background: "rgba(255, 255, 255, 0.05)",
+          cursor: "default",
+        }}
+      >
+        <p
+          style={{
+            fontFamily: "var(--font-bitter), serif",
+            fontWeight: 500,
+            fontSize: "16px",
+            lineHeight: 1.45,
+            margin: 0,
+            color: "rgba(255, 255, 255, 0.5)",
+          }}
+        >
+          <span style={{ color: "rgba(255, 255, 255, 0.4)" }}>for </span>
+          <span style={{ color: "rgba(255, 255, 255, 0.7)" }}>
+            {focusContextPillText}
+          </span>
+        </p>
+      </div>
+    </>
+  );
+
+  const emptyMessage = (
+    <p
+      className="text-center text-white/80"
+      style={{ fontFamily: "var(--font-bitter), serif", fontSize: "20px" }}
+    >
+      No question types available for this selection. Add more fields in Content or
+      adjust your focus.
+    </p>
+  );
+
+  if (isMultiTopic) {
+    return (
+      <div className="relative z-10 flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden">
+        {/* Panel derecho: de borde superior a inferior (detrás de HUD y barra Start Game) */}
+        <div
+          className="pointer-events-none absolute right-0 top-0 z-0 hidden h-full border-l border-white/[0.08] bg-black/[0.05] lg:block"
+          style={{ width: MULTI_RIGHT_PANEL_WIDTH }}
+          aria-hidden
+        />
+
+        {headerControls}
+
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col pt-[72px] lg:flex-row lg:pt-20">
+          <aside className="flex w-full shrink-0 flex-col justify-center px-8 py-6 sm:px-12 lg:min-w-0 lg:flex-[1_1_56%] lg:px-14 lg:py-10 xl:px-20">
+            <div className="mx-auto w-full max-w-[min(440px,100%)] text-left">
+              {titleBlock}
+            </div>
+          </aside>
+
+          {/* Móvil: mismo fondo en bloque; desktop: transparente (lo cubre la capa absolute) */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-white/[0.06] bg-black/[0.05] lg:w-[44%] lg:max-w-[44%] lg:flex-none lg:border-0 lg:bg-transparent">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]">
+              {questionOptions.length === 0 ? (
+                <div className="flex min-h-[200px] items-center justify-center px-4 py-8">
+                  {emptyMessage}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-10 px-4 py-8 sm:px-8">
+                  {topicGroups.map((group) => (
+                    <section
+                      key={group.topicId}
+                      className="flex w-full max-w-[360px] flex-col sm:max-w-[320px]"
+                    >
+                      <h2
+                        className="mb-3 w-full text-center text-[18px] font-semibold tracking-wide text-white/95"
+                        style={{ fontFamily: "ui-sans-serif, system-ui, sans-serif" }}
+                      >
+                        {group.heading}
+                      </h2>
+                      <div className="flex flex-col items-center gap-3">
+                        {group.options.map((opt, index) => {
+                          const isSelected = selected.includes(opt.id);
+                          const disabled = atMaxSelections && !isSelected;
+                          const shortLabel = shortLabelForGroupedOption(opt);
+                          return (
+                            <div
+                              key={opt.id}
+                              className="specs-option-enter flex justify-center"
+                              style={{ animationDelay: `${index * 50}ms` }}
+                            >
+                              <SpecsOption
+                                label={shortLabel}
+                                icon={iconForQuestionId(opt.id)}
+                                selected={isSelected}
+                                disabled={disabled}
+                                onClick={() => {
+                                  if (disabled) return;
+                                  toggle(opt.id);
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Misma altura de caja arriba y abajo (16px); encima del panel derecho */}
+        <div
+          className="pointer-events-auto relative z-40 flex shrink-0 justify-end border-t border-white/[0.08] bg-[#1e1a33]/92 px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+          style={{
+            paddingRight: `max(${SPECS_PRIMARY_ACTION_RIGHT_PX}px, env(safe-area-inset-right))`,
+          }}
+        >
+          <SpecsContinueButton
+            onClick={() => onContinue(selected)}
+            disabled={!canContinue || questionOptions.length === 0}
+          >
+            Start Game
+          </SpecsContinueButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative z-10 min-h-screen w-full overflow-hidden">
+      {headerControls}
 
       <div
         className="absolute left-0 right-0 z-10 flex flex-col items-center"
@@ -236,60 +450,7 @@ export function SpecsStep3TopicScreen({
           paddingRight: `${HEADER_FOOTER_PADDING_X}px`,
         }}
       >
-        <h1
-          className="w-full text-center text-white"
-          style={{
-            fontFamily: "var(--font-bitter), serif",
-            fontWeight: 700,
-            fontSize: "48px",
-            color: "#FFFFFF",
-            lineHeight: 1.25,
-            marginBottom: "8px",
-          }}
-        >
-          What should we ask you about?
-        </h1>
-        <p
-          className="w-full text-center"
-          style={{
-            fontFamily: "var(--font-bitter), serif",
-            fontWeight: 500,
-            fontSize: "24px",
-            color: "rgba(255, 255, 255, 0.80)",
-            lineHeight: 1.4,
-            margin: 0,
-          }}
-        >
-          Select up to {MAX_GAME_ROUNDS}
-        </p>
-
-        {/* Contexto del paso anterior: contenedor suave (no mismo lenguaje que los chips clicables) */}
-        <div
-          className="mt-5 mx-auto text-center"
-          style={{
-            maxWidth: "min(560px, 92vw)",
-            padding: "10px 18px",
-            borderRadius: "12px",
-            background: "rgba(255, 255, 255, 0.05)",
-            cursor: "default",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "var(--font-bitter), serif",
-              fontWeight: 500,
-              fontSize: "16px",
-              lineHeight: 1.45,
-              margin: 0,
-              color: "rgba(255, 255, 255, 0.5)",
-            }}
-          >
-            <span style={{ color: "rgba(255, 255, 255, 0.4)" }}>for </span>
-            <span style={{ color: "rgba(255, 255, 255, 0.7)" }}>
-              {focusContextPillText}
-            </span>
-          </p>
-        </div>
+        {titleBlock}
       </div>
 
       <div
@@ -301,13 +462,7 @@ export function SpecsStep3TopicScreen({
           style={{ maxWidth: `${SPECS_CHIP_BLOCK_MAX_WIDTH_PX}px` }}
         >
           {questionOptions.length === 0 ? (
-            <p
-              className="text-center text-white/80"
-              style={{ fontFamily: "var(--font-bitter), serif", fontSize: "20px" }}
-            >
-              No question types available for this selection. Add more fields in
-              Content or adjust your focus.
-            </p>
+            emptyMessage
           ) : (
             <div style={getSpecsChipRowStyle(3)}>
               {questionOptions.map((opt, index) => {

@@ -465,6 +465,7 @@ export default function GamePage() {
         )}
         {stage === "specs3" && (
           <SpecsStep3TopicScreen
+            selectedTopicIds={specsTopicIds}
             questionOptions={specs3QuestionOptions}
             onContinue={(ids) => {
               setSpecsQuestionIds(ids);
