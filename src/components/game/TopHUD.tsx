@@ -1,16 +1,17 @@
+import { LOW_TIME_SECONDS_THRESHOLD } from "@/lib/gameRoundConfig";
 import { Lives } from "./Lives";
 import { Timer } from "./Timer";
 import { SoundButton } from "./SoundButton";
 import { PauseButton } from "./PauseButton";
 
-type GameMode = "play" | "reveal";
+type GameMode = "play" | "reveal" | "results";
 
 interface TopHUDProps {
   lives: number;
   elapsedSeconds: number;
   isMuted: boolean;
   mode?: GameMode;
-  /** Segundos restantes por debajo de los cuales el reloj se pone en rojo (default 20) */
+  /** Segundos restantes por debajo de los cuales el reloj se pone en rojo */
   lowTimeThreshold?: number;
   connectedCount?: number;
   totalCards?: number;
@@ -23,35 +24,36 @@ export function TopHUD({
   elapsedSeconds,
   isMuted,
   mode = "play",
-  lowTimeThreshold = 20,
+  lowTimeThreshold = LOW_TIME_SECONDS_THRESHOLD,
   connectedCount = 0,
   totalCards = 4,
   onPauseClick,
   onMuteToggle,
 }: TopHUDProps) {
-  const isLowTime = mode === "play" && elapsedSeconds <= lowTimeThreshold;
+  const isLowTime =
+    mode === "play" && elapsedSeconds <= lowTimeThreshold;
 
   return (
     <div className="relative z-10 w-full flex items-center py-4 px-6">
-      {/* LEFT - Lives (oculto en reveal mode) */}
-      {mode === "play" && (
+      {/* LEFT - Lives (play y resultados; oculto en reveal) */}
+      {(mode === "play" || mode === "results") && (
         <div className="absolute left-6">
           <Lives lives={lives} maxLives={5} />
         </div>
       )}
 
-      {/* CENTER - Timer (sin Connected X/4) */}
+      {/* CENTER - Timer congelado en results (sin pulso rojo) */}
       <div className="flex-1 flex flex-col items-center justify-center gap-1">
         <Timer
           value={elapsedSeconds}
           formatAsTime
           showRevealIcon={mode === "reveal"}
-          isLowTime={isLowTime}
+          isLowTime={mode === "results" ? false : isLowTime}
         />
       </div>
 
-      {/* RIGHT - Sound + Pause (ocultos en reveal mode) */}
-      {mode === "play" && (
+      {/* RIGHT - Sound + Pause (play, resultados recap: mismo control que en partida) */}
+      {(mode === "play" || mode === "results") && (
         <div className="absolute right-6">
           <div
             style={{

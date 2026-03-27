@@ -9,7 +9,7 @@ export default function GlobalError({
 }) {
   return (
     <html lang="es">
-      <body style={{ margin: 0, padding: 24, background: "#1e2c51", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
+      <body style={{ margin: 0, padding: 24, background: "#153c71", color: "#fff", fontFamily: "system-ui, sans-serif" }}>
         <div style={{ maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
           <h1 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Error interno</h1>
           <p style={{ opacity: 0.8, marginBottom: 24 }}>{error.message}</p>

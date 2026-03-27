@@ -1,17 +1,17 @@
 import type { NextConfig } from "next";
 
 /**
- * En desarrollo con Webpack, desactivar caché en disco reduce errores ENOENT
- * en `.next/cache/webpack/...` cuando la caché queda a medias (p. ej. clean con el server encendido).
- * Turbopack (`npm run dev`) no usa esta ruta.
+ * No desactivar `webpack.cache` en dev: con `cache: false` el HMR de Next puede
+ * dejar referencias a módulos inválidas → Runtime TypeError
+ * `__webpack_modules__[moduleId] is not a function`.
+ * Si `.next` queda corrupta (ENOENT en manifiestos), usar `npm run clean`.
  */
 const nextConfig: NextConfig = {
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = false;
-    }
-    return config;
-  },
+  /**
+   * Evita inyectar el indicador/herramientas de desarrollo que en algunas
+   * versiones provoca errores RSC (p. ej. SegmentViewNode / client manifest).
+   */
+  devIndicators: false,
 };
 
 export default nextConfig;

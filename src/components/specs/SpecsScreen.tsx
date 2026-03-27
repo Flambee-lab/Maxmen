@@ -6,15 +6,17 @@ import Image from "next/image";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { BackButton } from "@/components/game/BackButton";
-import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { SpecsContinueButton } from "@/components/specs/SpecsContinueButton";
 import { SpecsOption } from "@/components/game/specs/SpecsOption";
 import {
   SPECS_PRIMARY_ACTION_BOTTOM_PX,
   SPECS_PRIMARY_ACTION_RIGHT_PX,
 } from "@/components/specs/specsFooterConstants";
+import { getSpecsChipRowStyle } from "@/components/specs/specsChipLayout";
 
 interface SpecsScreenProps {
-  onContinue: () => void;
+  /** Se llama con las opciones seleccionadas (ids si `selectById`, si no las labels). */
+  onContinue: (selected: string[]) => void;
   onBack?: () => void;
   isMuted?: boolean;
   onMuteToggle?: () => void;
@@ -24,6 +26,8 @@ interface SpecsScreenProps {
   subtitle?: string;
   /** Lista de opciones para el grid (reutiliza layout existente) */
   options?: ReadonlyArray<{ id: string; label: string }>;
+  /** Si true, la selección y el callback usan `id` en lugar de `label` (evita colisiones). */
+  selectById?: boolean;
   /** Selecciones máximas por paso */
   maxSelectable?: number;
   /**
@@ -79,6 +83,7 @@ export function SpecsScreen({
   title = "Select your Focus Group or Groups",
   subtitle = "Select up to 3 topics to play with.",
   options = SPECS_OPTIONS,
+  selectById = false,
   maxSelectable = 3,
   onlySelectableLabel,
   focusContextLabel,
@@ -93,6 +98,9 @@ export function SpecsScreen({
 }: SpecsScreenProps) {
   const router = useRouter();
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+
+  const optionKey = (opt: { id: string; label: string }) =>
+    selectById ? opt.id : opt.label;
 
   const tipBody =
     tipText ??
@@ -202,54 +210,65 @@ export function SpecsScreen({
             boxSizing: "border-box",
           }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${gridColumns}, 320px)`,
-              gap: "16px",
-              justifyItems: "center",
-              alignItems: "center",
-            }}
-          >
-            {options.map((opt, index) => (
-              <div
-                key={opt.id}
-                className="specs-option-enter"
-                style={{ animationDelay: `${index * 70}ms` }}
-              >
-                <SpecsOption
-                  label={opt.label}
-                  selected={selectedOptions.includes(opt.label)}
-                  disabled={
-                    onlySelectableLabel !== undefined &&
-                    opt.label !== onlySelectableLabel
-                  }
-                  onClick={() => {
-                    if (
+          {options.length === 0 ? (
+            <p
+              className="max-w-md px-4 text-center text-white/85"
+              style={{
+                fontFamily: "var(--font-bitter), serif",
+                fontSize: "22px",
+                lineHeight: 1.45,
+              }}
+            >
+              No content in your library yet. Add items in Content to see focus
+              topics here.
+            </p>
+          ) : (
+            <div style={getSpecsChipRowStyle(gridColumns)}>
+              {options.map((opt, index) => (
+                <div
+                  key={opt.id}
+                  className="specs-option-enter"
+                  style={{ animationDelay: `${index * 70}ms` }}
+                >
+                  <SpecsOption
+                    label={opt.label}
+                    selected={
+                      onlySelectableLabel !== undefined
+                        ? selectedOptions.includes(opt.label)
+                        : selectedOptions.includes(optionKey(opt))
+                    }
+                    disabled={
                       onlySelectableLabel !== undefined &&
                       opt.label !== onlySelectableLabel
-                    ) {
-                      return;
                     }
-                    setSelectedOptions((prev) => {
-                      if (onlySelectableLabel !== undefined) {
-                        const isSelected = prev.includes(opt.label);
-                        return isSelected ? [] : [onlySelectableLabel];
+                    onClick={() => {
+                      if (
+                        onlySelectableLabel !== undefined &&
+                        opt.label !== onlySelectableLabel
+                      ) {
+                        return;
                       }
-                      const isSelected = prev.includes(opt.label);
-                      if (isSelected) {
-                        return prev.filter((label) => label !== opt.label);
-                      }
-                      if (prev.length >= maxSelectable) {
-                        return prev;
-                      }
-                      return [...prev, opt.label];
-                    });
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+                      setSelectedOptions((prev) => {
+                        const key = optionKey(opt);
+                        if (onlySelectableLabel !== undefined) {
+                          const isSelected = prev.includes(opt.label);
+                          return isSelected ? [] : [onlySelectableLabel];
+                        }
+                        const isSelected = prev.includes(key);
+                        if (isSelected) {
+                          return prev.filter((k) => k !== key);
+                        }
+                        if (prev.length >= maxSelectable) {
+                          return prev;
+                        }
+                        return [...prev, key];
+                      });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer HUD: TIP (abs left) | 1 of 3 (centro viewport) | Continue (abs right) */}
@@ -360,16 +379,17 @@ export function SpecsScreen({
           }}
         >
           <div className="relative">
-            <GamePrimaryButton
-              onClick={onContinue}
+            <SpecsContinueButton
+              onClick={() => onContinue(selectedOptions)}
               disabled={
-                onlySelectableLabel !== undefined
+                options.length === 0 ||
+                (onlySelectableLabel !== undefined
                   ? !selectedOptions.includes(onlySelectableLabel)
-                  : selectedOptions.length < 1
+                  : selectedOptions.length < 1)
               }
             >
               Continue
-            </GamePrimaryButton>
+            </SpecsContinueButton>
             {showStartRandomGamePlaceholder ? (
               <span
                 aria-hidden

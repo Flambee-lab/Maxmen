@@ -10,8 +10,11 @@ const RING_OVERSIZE_FACTOR = 1.2; // Factor de oversize (120% del viewport)
 export function Background() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Fondo sólido */}
-      <div className="absolute inset-0 bg-[#284B79]" />
+      {/* Fondo sólido (ver --bg-play-blue en globals.css) */}
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: "var(--bg-play-blue)" }}
+      />
 
       {/* Halos blancos blur, animación muy suave (detrás del aro) */}
       <BackgroundHalos />

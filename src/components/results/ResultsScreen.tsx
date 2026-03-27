@@ -2,17 +2,30 @@
 
 /**
  * Pantalla de resultados (vista principal del flujo y preview en /results).
- * Estilos compartidos con el juego: `Background`, Bitter, tokens en globals.css (`.results-filter-*`, panel docked).
+ * Tras una partida: `gameSnapshot` muestra el recap in-game (cartas + chips revelados, HUD congelado).
+ * Sin snapshot: dashboard estático (gráficos + panel).
  */
 
 import { Background } from "@/components/game/Background";
 import { ScoreTrendChart } from "@/components/game/ScoreTrendChart";
+import { GameResultsRecap } from "./GameResultsRecap";
+import type { GameEndgameSnapshot } from "@/types/gameEndgameSnapshot";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
 const GOLD = "#facc15";
 
 export interface ResultsScreenProps {
+  /** Tras terminar una partida; si hay valor, se muestra el recap antes del dashboard */
+  gameSnapshot?: GameEndgameSnapshot | null;
+  isMuted?: boolean;
+  onMuteToggle?: () => void;
+  /** Close en el HUD del recap (volver al inicio, etc.) */
+  onRecapClose?: () => void;
+  /** Continue en el recap → siguiente paso (p. ej. video de recompensa) */
+  onRecapPrimaryContinue?: () => void;
+  /** Restart en menú de pausa del recap → nueva partida ronda 1 */
+  onRecapRestart?: () => void;
   onContinue?: () => void;
 }
 
@@ -206,7 +219,27 @@ function SummaryPanel() {
   );
 }
 
-export function ResultsScreen(_props: ResultsScreenProps) {
+export function ResultsScreen({
+  gameSnapshot,
+  isMuted = false,
+  onMuteToggle,
+  onRecapClose,
+  onRecapPrimaryContinue,
+  onRecapRestart,
+}: ResultsScreenProps) {
+  if (gameSnapshot) {
+    return (
+      <GameResultsRecap
+        snapshot={gameSnapshot}
+        isMuted={isMuted}
+        onMuteToggle={onMuteToggle ?? (() => {})}
+        onClose={onRecapClose ?? (() => {})}
+        onPrimaryContinue={onRecapPrimaryContinue ?? (() => {})}
+        onRestartGame={onRecapRestart ?? (() => {})}
+      />
+    );
+  }
+
   return (
     <div className="relative h-screen w-full overflow-hidden text-white">
       <Background />

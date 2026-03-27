@@ -3,10 +3,12 @@ import { CloseButton } from "./CloseButton";
 
 interface PauseMenuProps {
   onResume: () => void;
+  /** Nueva partida desde ronda 1 (mismo mazo / config) */
+  onRestart: () => void;
   onQuit: () => void;
 }
 
-export function PauseMenu({ onResume, onQuit }: PauseMenuProps) {
+export function PauseMenu({ onResume, onRestart, onQuit }: PauseMenuProps) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center">
       {/* Overlay con blur y oscurecido, dejando ver el juego detrás */}
@@ -35,9 +37,7 @@ export function PauseMenu({ onResume, onQuit }: PauseMenuProps) {
         {/* Botones principales (Resume / Restart / Close Game) */}
         <div className="flex flex-col w-full gap-3">
           <GamePrimaryButton onClick={onResume}>Resume</GamePrimaryButton>
-          <GamePrimaryButton onClick={() => console.log("restart")}>
-            Restart
-          </GamePrimaryButton>
+          <GamePrimaryButton onClick={onRestart}>Restart</GamePrimaryButton>
           <GamePrimaryButton onClick={onQuit}>Close Game</GamePrimaryButton>
         </div>
 

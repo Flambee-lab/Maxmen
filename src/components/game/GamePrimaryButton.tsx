@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { playClickSfx } from "@/lib/clickSfx";
+import { playClickSfx, playSoftRewardButtonClick } from "@/lib/clickSfx";
 
 interface GamePrimaryButtonProps {
   children: React.ReactNode;
@@ -9,6 +9,8 @@ interface GamePrimaryButtonProps {
   disabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  /** CTA de recompensa: click más suave / “misterioso” */
+  sfxVariant?: "click" | "reward";
 }
 
 const BASE_BG =
@@ -35,6 +37,7 @@ export function GamePrimaryButton({
   disabled = false,
   className = "",
   style = {},
+  sfxVariant = "click",
 }: GamePrimaryButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
@@ -60,7 +63,8 @@ export function GamePrimaryButton({
       type="button"
       onClick={() => {
         if (disabled) return;
-        playClickSfx();
+        if (sfxVariant === "reward") playSoftRewardButtonClick();
+        else playClickSfx();
         onClick?.();
       }}
       disabled={disabled}

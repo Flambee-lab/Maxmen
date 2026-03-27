@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "../styles/globals.css";
+import { ContentLibraryAutoSync } from "@/components/content/ContentLibraryAutoSync";
+import { ContentLibraryBootstrap } from "@/components/content/ContentLibraryBootstrap";
 
 export const metadata: Metadata = {
   title: "Maxmen Game",
@@ -25,7 +27,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased bg-[#1e2c51] text-white">
+      <body className="antialiased text-white">
+        <ContentLibraryBootstrap />
+        <ContentLibraryAutoSync />
         {children}
       </body>
     </html>

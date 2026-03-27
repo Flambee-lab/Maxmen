@@ -14,7 +14,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#1e2c51] p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[color:var(--bg-play-blue)] p-8">
       <h1 className="text-xl font-semibold text-white">Algo salió mal</h1>
       <p className="max-w-md text-center text-white/80">{error.message}</p>
       <button

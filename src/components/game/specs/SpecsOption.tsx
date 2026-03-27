@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { ReactNode } from "react";
+import { getSpecsSelectorShellStyle } from "@/components/game/specs/specsSelectorStyles";
 
 interface SpecsOptionProps {
   label: string;
@@ -12,25 +14,8 @@ interface SpecsOptionProps {
   icon?: ReactNode;
 }
 
-const REST_STYLE: React.CSSProperties = {
-  borderRadius: "47.23px",
-  border: "1px solid #FFF",
-  background: "rgba(255, 255, 255, 0.20)",
-  boxShadow:
-    "0 3px 0 0 rgba(255, 255, 255, 0.25) inset, 0 -4px 0 0 #FFF inset",
-};
-
-const SELECTED_STYLE: React.CSSProperties = {
-  borderRadius: "47.23px",
-  border: "4px solid #101665",
-  background: "rgba(16, 22, 101, 0.35)",
-  outline: "none",
-  outlineOffset: 0,
-};
-
 /**
- * Selector de categoría en SpecsScreen.
- * REST o SELECTED según prop selected; onClick para cambiar selección.
+ * Selector de categoría en Specs: shell blanco vidrio (como Quick Play en Intro) + hover / selección.
  */
 export function SpecsOption({
   label,
@@ -39,18 +24,36 @@ export function SpecsOption({
   disabled = false,
   icon,
 }: SpecsOptionProps) {
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
+  const shell = getSpecsSelectorShellStyle(hovered, selected, disabled);
+  const interactive = !disabled;
+  const translateY = interactive && pressed ? 1 : 0;
+
   return (
     <div
       className="specs-option-btn"
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
+      aria-pressed={selected}
       onClick={() => {
         if (!disabled) onClick();
       }}
       onKeyDown={(e) => {
         if (!disabled && e.key === "Enter") onClick();
       }}
+      onMouseEnter={() => interactive && setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setPressed(false);
+      }}
+      onMouseDown={(e) => {
+        if (e.button === 0 && interactive) setPressed(true);
+      }}
+      onMouseUp={() => setPressed(false)}
+      onBlur={() => setPressed(false)}
       style={{
         width: "320px",
         minHeight: "60px",
@@ -70,7 +73,12 @@ export function SpecsOption({
         outlineOffset: 0,
         opacity: disabled ? 0.42 : 1,
         pointerEvents: disabled ? "none" : "auto",
-        ...(selected ? SELECTED_STYLE : REST_STYLE),
+        transform: `translateY(${translateY}px)`,
+        textShadow:
+          selected && !disabled
+            ? "0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.35)"
+            : "0 1px 2px rgba(0, 0, 0, 0.2)",
+        ...shell,
       }}
     >
       {icon ? (

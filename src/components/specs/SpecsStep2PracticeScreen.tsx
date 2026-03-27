@@ -1,47 +1,26 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import type { PersonContentItem, PersonSubgroup } from "@/types/contentLibrary";
+import { buildSubgroupLabelsNotInLibrary } from "@/lib/game/specsOptionsFromContent";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { BackButton } from "@/components/game/BackButton";
-import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { SpecsContinueButton } from "@/components/specs/SpecsContinueButton";
 import { SpecsOption } from "@/components/game/specs/SpecsOption";
 import {
   SPECS_PRIMARY_ACTION_BOTTOM_PX,
   SPECS_PRIMARY_ACTION_RIGHT_PX,
 } from "@/components/specs/specsFooterConstants";
+import {
+  SPECS_CHIP_BLOCK_MAX_WIDTH_PX,
+  getSpecsChipRowStyle,
+} from "@/components/specs/specsChipLayout";
 
 /** Mismo padding que SpecsScreen / TopHUD */
 const HEADER_FOOTER_PADDING = 16;
 const HEADER_FOOTER_PADDING_X = 24;
-
-/** Ancho total del grid 3×320 + 2×16 (igual que SpecsScreen) */
-const GRID_WIDTH = 320 * 3 + 16 * 2;
-
-type PracticeOptionId = "immediate-family" | "all-relatives" | "friends-neighbors";
-
-const OPTIONS: {
-  id: PracticeOptionId;
-  label: string;
-  icon: ReactNode;
-}[] = [
-  {
-    id: "immediate-family",
-    label: "Immediate family",
-    icon: <IconFamily />,
-  },
-  {
-    id: "all-relatives",
-    label: "All relatives",
-    icon: <IconTheaterMasks />,
-  },
-  {
-    id: "friends-neighbors",
-    label: "Friends & Neighbors",
-    icon: <IconMusicNote />,
-  },
-];
 
 function IconFamily() {
   return (
@@ -101,26 +80,74 @@ function IconMusicNote() {
   );
 }
 
+function IconStar() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7L2 9.4h7.6L12 2z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function iconForSubgroup(id: PersonSubgroup): ReactNode {
+  switch (id) {
+    case "immediate_family":
+      return <IconFamily />;
+    case "relatives":
+      return <IconTheaterMasks />;
+    case "friends":
+      return <IconMusicNote />;
+    case "custom_groups":
+      return <IconStar />;
+    case "other_vips":
+      return <IconTheaterMasks />;
+    case "artists_musicians":
+      return <IconMusicNote />;
+    default:
+      return <IconFamily />;
+  }
+}
+
+export interface SpecsSubgroupOption {
+  id: PersonSubgroup;
+  label: string;
+}
+
 interface SpecsStep2PracticeScreenProps {
-  onContinue: () => void;
+  /** Subgrupos presentes en la biblioteca (personas) */
+  subgroupOptions: SpecsSubgroupOption[];
+  /** Todas las personas en la biblioteca (para calcular qué subgrupos aún no tienen fotos). */
+  libraryPersons: PersonContentItem[];
+  onContinue: (subgroup: PersonSubgroup) => void;
   onBack?: () => void;
   isMuted?: boolean;
   onMuteToggle?: () => void;
 }
 
 /**
- * Specs paso 2 — mismos selectores que SpecsScreen (`SpecsOption`).
- * Solo “Immediate family” es elegible; al entrar no hay selección hasta que la elijas.
- * Continue solo con esa opción seleccionada.
+ * Specs paso 2 — un subgrupo de personas según datos cargados.
  */
 export function SpecsStep2PracticeScreen({
+  subgroupOptions,
+  libraryPersons,
   onContinue,
   onBack,
   isMuted = false,
   onMuteToggle = () => {},
 }: SpecsStep2PracticeScreenProps) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<PracticeOptionId | null>(null);
+  const [selectedId, setSelectedId] = useState<PersonSubgroup | null>(null);
+
+  const gridCols: 2 | 3 = subgroupOptions.length <= 2 ? 2 : 3;
+
+  const subgroupsNotInLibraryYet = useMemo(
+    () => buildSubgroupLabelsNotInLibrary(libraryPersons),
+    [libraryPersons]
+  );
 
   return (
     <div className="relative z-10 min-h-screen w-full overflow-hidden">
@@ -140,7 +167,6 @@ export function SpecsStep2PracticeScreen({
         <CloseButton onClick={() => router.push("/")} />
       </div>
 
-      {/* Título: misma jerarquía que SpecsScreen */}
       <div
         className="absolute left-0 right-0 z-10 flex flex-col items-center"
         style={{
@@ -164,78 +190,98 @@ export function SpecsStep2PracticeScreen({
         </h1>
       </div>
 
-      {/* Selectores + banner: agrupados y centrados (como el grid de SpecsScreen) */}
       <div
         className="absolute inset-0 flex items-center justify-center overflow-y-auto overflow-x-hidden"
         style={{ zIndex: 1, padding: "24px 16px 120px" }}
       >
         <div
           className="flex w-full flex-col items-center justify-center"
-          style={{ maxWidth: `${GRID_WIDTH}px` }}
+          style={{ maxWidth: `${SPECS_CHIP_BLOCK_MAX_WIDTH_PX}px` }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 320px)",
-              gap: "16px",
-              justifyItems: "center",
-              alignItems: "center",
-              width: "100%",
-              justifyContent: "center",
-            }}
-          >
-            {OPTIONS.map((opt, index) => (
-              <div
-                key={opt.id}
-                className="specs-option-enter"
-                style={{ animationDelay: `${index * 70}ms` }}
-              >
-                <SpecsOption
-                  label={opt.label}
-                  icon={opt.icon}
-                  selected={selectedId === opt.id}
-                  disabled={opt.id !== "immediate-family"}
-                  onClick={() => {
-                    if (opt.id !== "immediate-family") return;
-                    setSelectedId((prev) =>
-                      prev === "immediate-family" ? null : "immediate-family",
-                    );
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div
-            className="mt-8 w-full rounded-[28px] border border-white/20 bg-white/[0.06] px-6 py-6 sm:px-8 sm:py-7"
-            style={{
-              maxWidth: `${GRID_WIDTH}px`,
-              marginLeft: "auto",
-              marginRight: "auto",
-              boxSizing: "border-box",
-            }}
-          >
+          {subgroupOptions.length === 0 ? (
             <p
-              className="text-center"
+              className="text-center text-white/85"
               style={{
                 fontFamily: "var(--font-bitter), serif",
-                fontWeight: 500,
                 fontSize: "20px",
-                color: "rgba(255, 255, 255, 0.80)",
+                maxWidth: "420px",
                 lineHeight: 1.45,
-                margin: 0,
               }}
             >
-              Remember you can go to your library and upload photos to{" "}
-              <InlineChip label="Custom group" />
-              {" "}
-              <InlineChip label="Other VIPs" />
-              {" "}
-              <InlineChip label="Artist / Musicians" />
-              {" "}
-              in order to use them during games.
+              No subgroup data in your library yet. Add people with a subgroup in
+              Content, then try again.
             </p>
-          </div>
+          ) : (
+            <div style={getSpecsChipRowStyle(gridCols)}>
+              {subgroupOptions.map((opt, index) => (
+                <div
+                  key={opt.id}
+                  className="specs-option-enter"
+                  style={{ animationDelay: `${index * 70}ms` }}
+                >
+                  <SpecsOption
+                    label={opt.label}
+                    icon={iconForSubgroup(opt.id)}
+                    selected={selectedId === opt.id}
+                    disabled={false}
+                    onClick={() => {
+                      setSelectedId((prev) => (prev === opt.id ? null : opt.id));
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {subgroupsNotInLibraryYet.length > 0 ? (
+            <div
+              className="mt-8 w-full px-2"
+              style={{
+                maxWidth: `${SPECS_CHIP_BLOCK_MAX_WIDTH_PX}px`,
+                marginLeft: "auto",
+                marginRight: "auto",
+                boxSizing: "border-box",
+              }}
+            >
+              <p
+                className="text-center"
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 500,
+                  fontSize: "14px",
+                  letterSpacing: "0.02em",
+                  color: "rgba(255, 255, 255, 0.42)",
+                  lineHeight: 1.4,
+                  margin: "0 0 10px 0",
+                }}
+              >
+                You can add photos in Library for these groups too:
+              </p>
+              <div
+                className="flex flex-wrap items-center justify-center gap-2"
+                style={{ rowGap: "8px" }}
+              >
+                {subgroupsNotInLibraryYet.map((sg) => (
+                  <span
+                    key={sg.id}
+                    className="inline-flex max-w-full items-center rounded-full"
+                    style={{
+                      fontFamily: "var(--font-bitter), serif",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      lineHeight: 1.3,
+                      color: "rgba(255, 255, 255, 0.48)",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      background: "rgba(255, 255, 255, 0.04)",
+                      padding: "4px 10px",
+                    }}
+                  >
+                    {sg.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -246,35 +292,15 @@ export function SpecsStep2PracticeScreen({
           bottom: `${SPECS_PRIMARY_ACTION_BOTTOM_PX}px`,
         }}
       >
-        <GamePrimaryButton
-          onClick={onContinue}
-          disabled={selectedId !== "immediate-family"}
+        <SpecsContinueButton
+          onClick={() => {
+            if (selectedId) onContinue(selectedId);
+          }}
+          disabled={selectedId === null || subgroupOptions.length === 0}
         >
           Continue
-        </GamePrimaryButton>
+        </SpecsContinueButton>
       </div>
     </div>
-  );
-}
-
-function InlineChip({ label }: { label: string }) {
-  return (
-    <span
-      className="inline-block rounded-full align-middle"
-      style={{
-        fontFamily: "var(--font-bitter), serif",
-        fontSize: "18px",
-        fontWeight: 600,
-        color: "rgba(255, 255, 255, 0.72)",
-        background: "rgba(255, 255, 255, 0.12)",
-        border: "1px solid rgba(255, 255, 255, 0.18)",
-        padding: "2px 10px",
-        margin: "0 2px",
-        verticalAlign: "middle",
-        lineHeight: 1.35,
-      }}
-    >
-      {label}
-    </span>
   );
 }

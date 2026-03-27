@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { GameState } from "@/types/game";
+import { GameState, type GameDifficulty, type PhotoCard } from "@/types/game";
+import type { GameLibraryDeck } from "@/types/gameLibraryDeck";
+import type { GameEndgameSnapshot } from "@/types/gameEndgameSnapshot";
 import { mockCards, mockChips } from "@/mocks/gameMocks";
+import {
+  DEFAULT_SECONDS_PER_ROUND,
+  LOW_TIME_SECONDS_THRESHOLD,
+} from "@/lib/gameRoundConfig";
 import { Background } from "./Background";
 import { TopHUD } from "./TopHUD";
 import { GameInstruction } from "./GameInstruction";
@@ -11,6 +17,7 @@ import { ChipRow } from "./ChipRow";
 import { PauseMenu } from "./PauseMenu";
 import { DragArrowOverlay } from "./DragArrowOverlay";
 import { GamePrimaryButton } from "./GamePrimaryButton";
+import { VictoryConfetti } from "./VictoryConfetti";
 import Image from "next/image";
 
 interface DragState {
@@ -24,6 +31,14 @@ interface DragState {
 type GameMode = "play" | "reveal";
 type InternalRound = 1 | 2 | 3;
 
+function getLibraryCardsForRound(deck: GameLibraryDeck, round: InternalRound): PhotoCard[] {
+  const per = deck.cardsPerRound;
+  if (per && per.length >= round) {
+    return per[round - 1] ?? deck.cards;
+  }
+  return deck.cards;
+}
+
 interface GameScreenProps {
   /** Si true, no renderiza Background (lo provee GameContainer) */
   skipBackground?: boolean;
@@ -31,12 +46,14 @@ interface GameScreenProps {
   isMuted?: boolean;
   /** Toggle global de mute (opcional); si no se pasa, usa estado interno */
   onMuteToggle?: () => void;
-  /** Al pulsar Continue en pantalla final (success o time's up); si no se pasa, se usa handleRestart */
-  onContinueFromEndgame?: () => void;
+  /** Continue tras “Good job!” o time-up final → pantalla de resultados con snapshot del juego */
+  onContinueFromEndgame?: (snapshot: GameEndgameSnapshot) => void;
   /** Segundos por ronda, configurables desde Intro */
   initialRoundSeconds?: number;
   /** Dificultad configurada desde Intro (por ahora no cambia el gameplay) */
-  difficulty?: "easy" | "medium";
+  difficulty?: GameDifficulty;
+  /** Mazo desde la biblioteca (Quick Play); sin esto se usan los mocks internos */
+  libraryDeck?: GameLibraryDeck | null;
 }
 
 /** Mapping correcto Round 1/3: chipName -> cardId */
@@ -83,53 +100,81 @@ const BIRTHDATE_BY_CARD_ROUND_3_FINAL: Record<string, string> = {
   "card-4": "Nov 3, 2005",
 };
 
+/** chipLabel → cardId → invertir a cardId → chipLabel para resolvedByCard */
+function chipToCardMappingToResolved(
+  mapping: Record<string, string>
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(mapping).map(([chipName, cardId]) => [cardId, chipName])
+  );
+}
+
+/** Si no hubo estado de apilado, reconstruye líneas desde nombre + relación + cumple (p. ej. recap). */
+function buildStackedLinesFallback(
+  cards: { id: string }[],
+  resolved: Record<string, string>,
+  rel: Record<string, string>,
+  birth: Record<string, string>
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const { id } of cards) {
+    const lines: string[] = [];
+    if (resolved[id]) lines.push(resolved[id]);
+    if (rel[id]) lines.push(`is my ${rel[id]}`);
+    if (birth[id]) lines.push(birth[id]);
+    if (lines.length) out[id] = lines;
+  }
+  return out;
+}
+
 const MUTED_STORAGE_KEY = "maxman_sound_muted";
 const BG_VOLUME = 0.075; // música ambiental baja
 const SFX_VOLUME = 0.55; // SFX claramente por encima de la música
 /** Duración en ms del overlay correcto/incorrecto sobre la card antes de volver a idle */
 const FEEDBACK_OVERLAY_MS = 800;
-/** Duración del "time's up" reveal antes de continuar */
-const ROUND_TIMEOUT_REVEAL_MS = 18000;
-
+/** Cuánto se muestra la pantalla "time's up" antes de pasar a la siguiente ronda o al video final */
+const TIME_UP_DISPLAY_MS = 6000;
+/** Tras “Good job!” pasa solo a la pantalla de resultados (sin botón Continue). */
+const VICTORY_GOOD_JOB_AUTO_MS = 3200;
 /**
  * Secuencia intro / transición entre rondas (más legible):
- * 1) Solo "Round N" → 2) categoría (Name / Relationships / Birthday) → 3) pausa
- * → 4) cartas + categoría fija al centro + giro → playing (sin repetir "Round" arriba)
+ * 1) Solo "Round N" → 2) categoría → 3) pausa
+ * → 4) cartas (animación en CSS) → playing (sin repetir "Round" arriba)
  */
 type RoundIntroStep = "roundNum" | "category" | "cards";
 
 const ROUND_INTRO_MS_ROUND_NUM = 2000;
 const ROUND_INTRO_MS_CATEGORY = 2000;
 const ROUND_INTRO_MS_BREAK = 400;
-/** Tiempo desde que aparecen las cartas hasta pasar a playing (giro + stagger) */
+/** Tiempo desde que aparecen las cartas hasta pasar a playing */
 const ROUND_INTRO_MS_CARD_FLIP = 4000;
 
 const ROUND_INTRO_MS_UNTIL_CARDS =
   ROUND_INTRO_MS_ROUND_NUM + ROUND_INTRO_MS_CATEGORY + ROUND_INTRO_MS_BREAK;
-/** Fin de intro / transición: tras el giro de cartas (no hay segundo banner "Round X of 3") */
+/** Fin de intro / transición (no hay segundo banner "Round X of 3") */
 const ROUND_INTRO_MS_TO_PLAYING =
   ROUND_INTRO_MS_UNTIL_CARDS + ROUND_INTRO_MS_CARD_FLIP;
 
 function getRoundIntroCopy(
   phase: "preRoundIntro" | "transition",
-  currentRound: InternalRound
+  currentRound: InternalRound,
+  categoryLabels?: string[]
 ): { displayRound: 1 | 2 | 3; category: string } {
+  const L = categoryLabels ?? [];
   if (phase === "preRoundIntro" && currentRound === 1) {
-    return { displayRound: 1, category: "Name" };
+    return { displayRound: 1, category: L[0] ?? "Name" };
   }
   if (phase === "transition" && currentRound === 1) {
-    return { displayRound: 2, category: "Relationships" };
+    return { displayRound: 2, category: L[1] ?? "Relationships" };
   }
   if (phase === "transition" && currentRound === 2) {
-    return { displayRound: 3, category: "Birthday" };
+    return { displayRound: 3, category: L[2] ?? "Birthday" };
   }
   return { displayRound: currentRound, category: "" };
 }
 
-/** Por debajo de estos segundos restantes el reloj se pone rojo y suena la alerta */
-const LOW_TIME_THRESHOLD = 20;
-/** Countdown inicial por defecto: 2:00. El warning (rojo, animación, tick) solo se activa cuando quedan ≤20s. */
-const DEFAULT_INITIAL_ROUND_SECONDS = 120;
+const LOW_TIME_THRESHOLD = LOW_TIME_SECONDS_THRESHOLD;
+const DEFAULT_INITIAL_ROUND_SECONDS = DEFAULT_SECONDS_PER_ROUND;
 
 /**
  * Estructura preparada para rondas internas.
@@ -298,7 +343,7 @@ function playFallbackSfx(
     .catch(() => {});
 }
 
-/** Beep corto de countdown (≤20s): más fuerte que el lofi, para tick cada segundo */
+/** Beep corto de countdown (últimos segundos de ronda): más fuerte que el lofi, tick cada segundo */
 function playTickSfx(
   audioContextRef: React.MutableRefObject<AudioContext | null>
 ) {
@@ -326,13 +371,25 @@ export function GameScreen({
   onMuteToggle,
   onContinueFromEndgame,
   initialRoundSeconds,
+  libraryDeck,
 }: GameScreenProps = {}) {
-  const initialSeconds =
-    typeof initialRoundSeconds === "number" &&
-    initialRoundSeconds > 0 &&
-    Number.isFinite(initialRoundSeconds)
-      ? Math.floor(initialRoundSeconds)
-      : DEFAULT_INITIAL_ROUND_SECONDS;
+  const initialSeconds = (() => {
+    const raw = initialRoundSeconds;
+    const n =
+      typeof raw === "number"
+        ? raw
+        : typeof raw === "string"
+          ? Number(raw)
+          : NaN;
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+    return DEFAULT_INITIAL_ROUND_SECONDS;
+  })();
+
+  const maxRounds = Math.min(
+    3,
+    Math.max(1, libraryDeck?.totalRounds ?? 3)
+  );
+
   const [round, setRound] = useState<InternalRound>(1);
   const [gamePhase, setGamePhase] = useState<"preRoundIntro" | "playing" | "transition">(
     "preRoundIntro"
@@ -343,6 +400,10 @@ export function GameScreen({
   const [cardFeedback, setCardFeedback] = useState<Record<string, "idle" | "incorrect" | "correct">>({}); // cardId -> feedback temporal
   const [round2RelationshipByCard, setRound2RelationshipByCard] = useState<Record<string, string>>({});
   const [round3BirthDateByCard, setRound3BirthDateByCard] = useState<Record<string, string>>({});
+  /** Nametag apilado por card (nombre → relación → fecha según rondas) */
+  const [cardContentLinesByCard, setCardContentLinesByCard] = useState<
+    Record<string, string[]>
+  >({});
   const [isPaused, setIsPaused] = useState(false);
   const [mode, setMode] = useState<GameMode>("play");
   const connectSlotsRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -368,7 +429,12 @@ export function GameScreen({
         isMuted = localStorage.getItem(MUTED_STORAGE_KEY) === "true";
       } catch (_) {}
     }
-    const roundData = getRoundData(1);
+    const roundData = libraryDeck
+      ? {
+          cards: getLibraryCardsForRound(libraryDeck, 1),
+          chips: libraryDeck.roundChips[0] ?? [],
+        }
+      : getRoundData(1);
     return {
       round: 1,
       lives: 5,
@@ -636,8 +702,16 @@ export function GameScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeOriginCardId]);
 
+  const relationshipLabelPossessive =
+    libraryDeck?.roundQuestionIds?.[1] === "relationships" || !libraryDeck;
+
   const resetRoundState = useCallback((targetRound: InternalRound) => {
-    const roundData = getRoundData(targetRound);
+    const roundData = libraryDeck
+      ? {
+          cards: getLibraryCardsForRound(libraryDeck, targetRound),
+          chips: libraryDeck.roundChips[targetRound - 1] ?? [],
+        }
+      : getRoundData(targetRound);
     // Limpiar timers de feedback overlay
     Object.values(feedbackResetTimersRef.current).forEach((t) => {
       if (t) clearTimeout(t);
@@ -652,6 +726,11 @@ export function GameScreen({
     setCardFeedback({});
     setRound2RelationshipByCard({});
     setRound3BirthDateByCard({});
+    if (targetRound === 1) {
+      setCardContentLinesByCard({});
+    } else if (libraryDeck?.cardsPerRound?.length) {
+      setCardContentLinesByCard({});
+    }
     setCardStatus({});
     setActiveCardId(null);
     setActiveChipId(null);
@@ -671,6 +750,7 @@ export function GameScreen({
     setGameState((prev) => ({
       ...prev,
       round: targetRound,
+      ...(targetRound === 1 ? { lives: 5 } : {}),
       cards: roundData.cards,
       chips: roundData.chips,
       connections: [],
@@ -681,18 +761,19 @@ export function GameScreen({
       showSuccess: false,
       successReason: undefined,
     }));
-  }, [initialSeconds]);
+  }, [initialSeconds, libraryDeck]);
 
   const advanceToNextRound = useCallback(() => {
-    if (round >= 3) return;
+    if (round >= maxRounds) return;
     const nextRound = (round + 1) as InternalRound;
     resetRoundState(nextRound);
-  }, [resetRoundState, round]);
+  }, [resetRoundState, round, maxRounds]);
 
   // Secuencia intro ronda 1 y transiciones 1→2 / 2→3 (textos escalonados + cartas al final)
   useEffect(() => {
     const isRound1Intro = gamePhase === "preRoundIntro" && round === 1;
-    const isBetweenRounds = gamePhase === "transition" && (round === 1 || round === 2);
+    const isBetweenRounds =
+      gamePhase === "transition" && round < maxRounds;
     if (!isRound1Intro && !isBetweenRounds) return;
 
     setRoundIntroStep("roundNum");
@@ -720,7 +801,7 @@ export function GameScreen({
       clearTimeout(tCards);
       clearTimeout(tDone);
     };
-  }, [advanceToNextRound, gamePhase, round]);
+  }, [advanceToNextRound, gamePhase, maxRounds, round]);
 
   const resolveConnection = useCallback(
     (nameId: string, cardId: string) => {
@@ -738,12 +819,14 @@ export function GameScreen({
       const chipName = chip?.name;
       const droppedCardId = cardId;
 
+      const deckMap = libraryDeck?.mappingsPerRound[round - 1];
       const correctMappingByRound =
-        round === 2
+        deckMap ??
+        (round === 2
           ? CORRECT_MAPPING_ROUND_RELATIONSHIPS
           : round === 3
             ? CORRECT_MAPPING_ROUND_BIRTHDAYS
-            : CORRECT_MAPPING_ROUND_NAMES;
+            : CORRECT_MAPPING_ROUND_NAMES);
       const isDistractor = chip?.isDistractor === true;
       const isCorrect =
         !isDistractor &&
@@ -781,6 +864,20 @@ export function GameScreen({
             [droppedCardId]: chipName,
           }));
 
+          setCardContentLinesByCard((prev) => {
+            const prevLines = prev[droppedCardId] ?? [];
+            const line =
+              round === 2 &&
+              (libraryDeck?.roundQuestionIds?.[1] === "relationships" ||
+                (!libraryDeck && round === 2))
+                ? `is my ${chipName}`
+                : chipName;
+            return {
+              ...prev,
+              [droppedCardId]: [...prevLines, line],
+            };
+          });
+
           if (round === 2) {
             setRound2RelationshipByCard((prev) => ({
               ...prev,
@@ -802,7 +899,7 @@ export function GameScreen({
             return {
               ...prev,
               chips: nextChips,
-              ...(willBeComplete && round === 3
+              ...(willBeComplete && round === maxRounds
                 ? { showSuccess: true, successReason: "victory" as const }
                 : {}),
             };
@@ -822,7 +919,7 @@ export function GameScreen({
             // Transiciones internas entre rondas:
             // - Ronda 1 -> transición "Relationships"
             // - Ronda 2 -> transición "Birthday"
-            if (round === 1 || round === 2) {
+            if (round < maxRounds) {
               setGamePhase("transition");
             }
           }
@@ -848,7 +945,16 @@ export function GameScreen({
       setActiveCardId(null);
       setGameState((prev) => ({ ...prev, selectedChipId: null }));
     },
-    [advanceToNextRound, gameState.cards.length, gameState.chips, playSfx, resolvedByCard, round]
+    [
+      advanceToNextRound,
+      gameState.cards.length,
+      gameState.chips,
+      libraryDeck,
+      maxRounds,
+      playSfx,
+      resolvedByCard,
+      round,
+    ]
   );
 
   const handleCardDrop = useCallback(
@@ -889,6 +995,13 @@ export function GameScreen({
     resetRoundState(1);
   };
 
+  /** Menú de pausa: Restart → ronda 1, cierra el modal */
+  const handlePauseRestart = () => {
+    setIsPaused(false);
+    setGameState((prev) => ({ ...prev, isPaused: false }));
+    handleRestart();
+  };
+
   const handleCloseGame = () => {
     // Volver a modo play sin resetear
     setMode("play");
@@ -923,48 +1036,7 @@ export function GameScreen({
     }
   }, [gamePhase, gameState.showSuccess, mode, isPaused, remainingSeconds]);
 
-  // Auto-progresión tras el reveal de timeout
-  useEffect(() => {
-    const isTimeUp = gameState.showSuccess && gameState.successReason === "timeUp";
-    if (!isTimeUp) return;
-    const t = setTimeout(() => {
-      // Si hay siguiente ronda: pasar por transición
-      if (round < 3) {
-        // Para que la transición muestre contenido consistente (sin revertir parcial):
-        // - Round 1 -> 2: necesitamos nombres correctos para todas las cards.
-        // - Round 2 -> 3: necesitamos relaciones correctas para todas las cards.
-        if (round === 1) {
-          const fullResolvedByCard = Object.entries(
-            CORRECT_MAPPING_ROUND_NAMES
-          ).reduce((acc, [chipName, cardId]) => {
-            acc[cardId] = chipName;
-            return acc;
-          }, {} as Record<string, string>);
-          setResolvedByCard(fullResolvedByCard);
-        } else if (round === 2) {
-          setRound2RelationshipByCard(RELATIONSHIP_BY_CARD_ROUND_2_FINAL);
-        }
-
-        setGameState((prev) => ({
-          ...prev,
-          showSuccess: false,
-          successReason: undefined,
-          chips: prev.chips.filter((c) => !c.isDistractor),
-        }));
-        setMode("play");
-        setGamePhase("transition");
-        return;
-      }
-
-      // Última ronda: continuar a video/resultados (end flow normal)
-      if (onContinueFromEndgame) onContinueFromEndgame();
-      else handleRestart();
-    }, ROUND_TIMEOUT_REVEAL_MS);
-
-    return () => clearTimeout(t);
-  }, [gameState.showSuccess, gameState.successReason, handleRestart, onContinueFromEndgame, round]);
-
-  // Al cruzar a ≤20s: tick de countdown cada segundo hasta 0; para si termina el juego o llega a 0
+  // Al cruzar al umbral de tiempo bajo: tick cada segundo hasta 0; para si termina el juego o llega a 0
   useEffect(() => {
     const inLowTime =
       mode === "play" &&
@@ -987,12 +1059,12 @@ export function GameScreen({
     lowTimeAlertPlayedRef.current = true;
   }, [mode, isPaused, remainingSeconds, gameState.showSuccess, gameState.isMuted, isMuted]);
 
+  const round1IdentityMapping =
+    libraryDeck?.mappingNames ?? CORRECT_MAPPING_ROUND_NAMES;
+
   // En reveal mode, crear resolvedByCard automático usando mapping de nombres (Round 1/3)
   const revealResolvedByCard = mode === "reveal"
-    ? Object.entries(CORRECT_MAPPING_ROUND_NAMES).reduce((acc, [chipName, cardId]) => {
-        acc[cardId] = chipName;
-        return acc;
-      }, {} as Record<string, string>)
+    ? chipToCardMappingToResolved(round1IdentityMapping)
     : resolvedByCard;
 
   // Endgame por tiempo: misma UI que el juego; contenido dinámico según progreso real (solo uniones pendientes)
@@ -1002,14 +1074,30 @@ export function GameScreen({
   const timeUpRemainingCards = gameState.cards.filter(
     (c) => !resolvedByCard[c.id]
   );
-  const timeUpResolvedByCard = (() => {
-    const acc: Record<string, string> = {};
+  /** Respuestas correctas (etiqueta de chip) por card, según la ronda — no solo nombres de ronda 1 */
+  const timeUpResolvedByCard = useMemo(() => {
+    if (!isTimeUpEndgame) return {};
     const remainingIds = new Set(timeUpRemainingCards.map((c) => c.id));
-    for (const [chipName, cardId] of Object.entries(CORRECT_MAPPING_ROUND_NAMES)) {
-      if (remainingIds.has(cardId)) acc[cardId] = chipName;
+    if (remainingIds.size === 0) return {};
+    const deckMap =
+      libraryDeck?.mappingsPerRound[round - 1] ??
+      (round === 2
+        ? CORRECT_MAPPING_ROUND_RELATIONSHIPS
+        : round === 3
+          ? CORRECT_MAPPING_ROUND_BIRTHDAYS
+          : CORRECT_MAPPING_ROUND_NAMES);
+    const acc: Record<string, string> = {};
+    for (const [chipLabel, cardId] of Object.entries(deckMap)) {
+      if (!cardId || cardId === "__distractor__") continue;
+      if (remainingIds.has(cardId)) acc[cardId] = chipLabel;
     }
     return acc;
-  })();
+  }, [
+    isTimeUpEndgame,
+    timeUpRemainingCards,
+    round,
+    libraryDeck?.mappingsPerRound,
+  ]);
   const cardsForDisplay = isTimeUpEndgame
     ? timeUpRemainingCards
     : gameState.cards;
@@ -1018,33 +1106,32 @@ export function GameScreen({
   const isSuccessEndgame = !!(
     gameState.showSuccess && gameState.successReason === "victory"
   );
-  const successResolvedByCard = Object.entries(CORRECT_MAPPING_ROUND_NAMES).reduce(
-    (acc, [chipName, cardId]) => {
-      acc[cardId] = chipName;
-      return acc;
-    },
-    {} as Record<string, string>
-  );
+  const successResolvedByCard =
+    chipToCardMappingToResolved(round1IdentityMapping);
+  const relationshipFinal =
+    libraryDeck?.relationshipByCardId ?? RELATIONSHIP_BY_CARD_ROUND_2_FINAL;
   const preResolvedByCardForIdentityRounds =
     round === 2 || round === 3 ? successResolvedByCard : {};
+  /** Time up: solo `resolvedChipName` (respuesta chip); evita duplicar “is my …” / fecha bajo el mismo texto */
+  /** En victoria: usar conexiones reales del jugador (IDs del mazo), no el mapping mock de demos */
   const relationshipByCardForDisplay =
     round === 2
       ? isTimeUpEndgame
-        ? RELATIONSHIP_BY_CARD_ROUND_2_FINAL
+        ? {}
         : round2RelationshipByCard
       : round === 3
-        ? RELATIONSHIP_BY_CARD_ROUND_2_FINAL
+        ? isTimeUpEndgame
+          ? {}
+          : isSuccessEndgame
+            ? round2RelationshipByCard
+            : relationshipFinal
         : {};
   const birthDateByCardForDisplay =
-    round === 3
-      ? isTimeUpEndgame || isSuccessEndgame
-        ? BIRTHDATE_BY_CARD_ROUND_3_FINAL
-        : round3BirthDateByCard
-      : {};
+    round === 3 ? (isTimeUpEndgame ? {} : round3BirthDateByCard) : {};
   const resolvedByCardForDisplay = isTimeUpEndgame
     ? timeUpResolvedByCard
     : isSuccessEndgame
-      ? successResolvedByCard
+      ? resolvedByCard
       : round === 2 || round === 3
         ? preResolvedByCardForIdentityRounds
       : mode === "reveal"
@@ -1054,26 +1141,132 @@ export function GameScreen({
 
   const showRoundIntroOverlays =
     (gamePhase === "preRoundIntro" && round === 1) ||
-    (gamePhase === "transition" && (round === 1 || round === 2));
+    (gamePhase === "transition" && round < maxRounds);
 
   const introCopy = useMemo(() => {
     if (!showRoundIntroOverlays) return { displayRound: 1 as const, category: "" };
     return getRoundIntroCopy(
       gamePhase === "transition" ? "transition" : "preRoundIntro",
-      round
+      round,
+      libraryDeck?.roundCategoryLabels
     );
-  }, [gamePhase, round, showRoundIntroOverlays]);
+  }, [gamePhase, libraryDeck?.roundCategoryLabels, round, showRoundIntroOverlays]);
+
+  const buildEndgameSnapshot = useCallback((): GameEndgameSnapshot => {
+    const chipsRow =
+      gameState.chips.length > 0
+        ? gameState.chips
+        : libraryDeck?.roundChips[round - 1] ?? getRoundData(round).chips;
+    const stackedLines =
+      Object.keys(cardContentLinesByCard).length > 0
+        ? cardContentLinesByCard
+        : buildStackedLinesFallback(
+            gameState.cards,
+            resolvedByCardForDisplay,
+            relationshipByCardForDisplay,
+            birthDateByCardForDisplay
+          );
+
+    return {
+      remainingSeconds,
+      lives: gameState.lives,
+      cards: gameState.cards,
+      resolvedByCard: resolvedByCardForDisplay,
+      relationshipByCard: relationshipByCardForDisplay,
+      birthDateByCard: birthDateByCardForDisplay,
+      cardContentLinesByCard: stackedLines,
+      chips: chipsRow,
+      finalRound: round,
+      maxRounds,
+    };
+  }, [
+    cardContentLinesByCard,
+    remainingSeconds,
+    gameState.lives,
+    gameState.cards,
+    gameState.chips,
+    resolvedByCardForDisplay,
+    relationshipByCardForDisplay,
+    birthDateByCardForDisplay,
+    libraryDeck?.roundChips,
+    round,
+    maxRounds,
+  ]);
 
   const handleContinueAfterEndgame = useCallback(() => {
     // En timeout de rondas 1/2, no reiniciamos: la progresión es automática.
-    if (isTimeUpEndgame && round < 3) return;
-    // Reward video/results solo cuando termina la ronda 3 (victoria o tiempo agotado).
-    if ((isSuccessEndgame || isTimeUpEndgame) && round === 3 && onContinueFromEndgame) {
-      onContinueFromEndgame();
+    if (isTimeUpEndgame && round < maxRounds) return;
+    // Pantalla de resultados solo en la última ronda (victoria o tiempo agotado).
+    if (
+      (isSuccessEndgame || isTimeUpEndgame) &&
+      round === maxRounds &&
+      onContinueFromEndgame
+    ) {
+      onContinueFromEndgame(buildEndgameSnapshot());
       return;
     }
     handleRestart();
-  }, [handleRestart, isSuccessEndgame, isTimeUpEndgame, onContinueFromEndgame, round]);
+  }, [
+    buildEndgameSnapshot,
+    handleRestart,
+    isSuccessEndgame,
+    isTimeUpEndgame,
+    maxRounds,
+    onContinueFromEndgame,
+    round,
+  ]);
+
+  // Auto-progresión tras el reveal de timeout (última ronda → snapshot + resultados)
+  useEffect(() => {
+    const isTimeUp = gameState.showSuccess && gameState.successReason === "timeUp";
+    if (!isTimeUp) return;
+    const t = setTimeout(() => {
+      if (round < maxRounds) {
+        if (round === 1) {
+          const mapping = libraryDeck?.mappingNames ?? CORRECT_MAPPING_ROUND_NAMES;
+          setResolvedByCard(chipToCardMappingToResolved(mapping));
+        } else if (round === 2) {
+          setRound2RelationshipByCard(
+            libraryDeck?.relationshipByCardId ?? RELATIONSHIP_BY_CARD_ROUND_2_FINAL
+          );
+        }
+
+        setGameState((prev) => ({
+          ...prev,
+          showSuccess: false,
+          successReason: undefined,
+          chips: prev.chips.filter((c) => !c.isDistractor),
+        }));
+        setMode("play");
+        setGamePhase("transition");
+        return;
+      }
+
+      if (onContinueFromEndgame) onContinueFromEndgame(buildEndgameSnapshot());
+      else handleRestart();
+    }, TIME_UP_DISPLAY_MS);
+
+    return () => clearTimeout(t);
+  }, [
+    buildEndgameSnapshot,
+    gameState.showSuccess,
+    gameState.successReason,
+    handleRestart,
+    libraryDeck?.mappingNames,
+    libraryDeck?.relationshipByCardId,
+    maxRounds,
+    onContinueFromEndgame,
+    round,
+  ]);
+
+  // Victoria: “Good job!” centrado; al terminar la animación pasa sola a resultados
+  useEffect(() => {
+    if (!isSuccessEndgame || round !== maxRounds) return;
+    const id = window.setTimeout(() => {
+      handleContinueAfterEndgame();
+    }, VICTORY_GOOD_JOB_AUTO_MS);
+    return () => clearTimeout(id);
+  }, [handleContinueAfterEndgame, isSuccessEndgame, maxRounds, round]);
 
   // Cerrar pausa con tecla Escape
   useEffect(() => {
@@ -1165,7 +1358,7 @@ export function GameScreen({
         }
       >
         <div className="relative z-10 flex h-full min-h-0 flex-col overflow-hidden">
-          {gamePhase !== "transition" && (
+          {gamePhase !== "transition" && !isSuccessEndgame && (
             <TopHUD
               lives={gameState.lives}
               elapsedSeconds={remainingSeconds}
@@ -1182,7 +1375,7 @@ export function GameScreen({
             style={{
               // Sin HUD en transición: no sumar margen extra (evita overflow / micro-scroll)
               marginTop: gamePhase === "transition" ? 0 : "58px",
-              ...(isFinalScreen ? { paddingBottom: "120px" } : {}),
+              ...(isTimeUpEndgame ? { paddingBottom: "48px" } : {}),
             }}
           >
             {isTimeUpEndgame ? (
@@ -1196,8 +1389,22 @@ export function GameScreen({
                     textAlign: "center",
                   }}
                 >
-                  Endgame – Time&apos;s Up
+                  Time&apos;s up
                 </p>
+                {round < maxRounds ? (
+                  <p
+                    style={{
+                      fontFamily: "var(--font-bitter), serif",
+                      fontWeight: 600,
+                      fontSize: "20px",
+                      color: "rgba(255, 255, 255, 0.85)",
+                      textAlign: "center",
+                      marginTop: "12px",
+                    }}
+                  >
+                    Next round…
+                  </p>
+                ) : null}
                 {(showCardsAndChips || isFinalScreen) && (
                   <div ref={canvasRef} style={{ marginTop: "32px", width: "100%", maxWidth: "1200px" }}>
                     <CardStage
@@ -1214,63 +1421,32 @@ export function GameScreen({
                       activeOriginCardId={null}
                       showConnectSlotWhenResolved={round === 2 || round === 3}
                       relationshipByCard={relationshipByCardForDisplay}
+                      relationshipLabelPossessive={relationshipLabelPossessive}
                       keepConnectorWhenRelationship={round === 3}
                       resolvedConnectorExtraOffsetPx={round === 3 ? 22 : 0}
                       birthDateByCard={birthDateByCardForDisplay}
+                      cardContentLinesByCard={cardContentLinesByCard}
+                      round={round}
                       photosOnly={false}
                     />
                   </div>
                 )}
               </>
             ) : isSuccessEndgame ? (
-              <>
-                <p
-                  style={{
-                    fontFamily: "var(--font-bitter), serif",
-                    fontWeight: 700,
-                    fontSize: "28px",
-                    color: "#FFFFFF",
-                    textAlign: "center",
-                    marginBottom: "8px",
-                  }}
+              /* Overlay fijo centrado (globals); sin Continue — avanza solo tras VICTORY_GOOD_JOB_AUTO_MS */
+              <div className="relative min-h-[min(60vh,520px)] w-full flex-1 shrink-0">
+                <div
+                  className="victory-celebration-overlay"
+                  style={{ pointerEvents: "none" }}
+                  aria-live="polite"
                 >
-                  Good job!
-                </p>
-                <p
-                  style={{
-                    fontFamily: "var(--font-bitter), serif",
-                    fontWeight: 700,
-                    fontSize: "32px",
-                    color: "#FFFFFF",
-                    textAlign: "center",
-                  }}
-                >
-                  You completed the game!
-                </p>
-                {(showCardsAndChips || isFinalScreen) && (
-                  <div ref={canvasRef} style={{ marginTop: "32px", width: "100%", maxWidth: "1200px" }}>
-                    <CardStage
-                      cards={cardsForDisplay}
-                      highlightedCardId={null}
-                      cardStatus={cardStatus}
-                      resolvedByCard={resolvedByCardForDisplay}
-                      cardFeedback={cardFeedback}
-                      onCardHover={() => {}}
-                      onCardDrop={handleCardDrop}
-                      connectSlotRef={registerConnectSlot}
-                      animateMount={false}
-                      showSlotArrow={false}
-                      activeOriginCardId={null}
-                      showConnectSlotWhenResolved={round === 2 || round === 3}
-                      relationshipByCard={relationshipByCardForDisplay}
-                      keepConnectorWhenRelationship={round === 3}
-                      resolvedConnectorExtraOffsetPx={round === 3 ? 22 : 0}
-                      birthDateByCard={birthDateByCardForDisplay}
-                      photosOnly={false}
-                    />
+                  <VictoryConfetti intensity="full" />
+                  <div className="victory-celebration-title-stack">
+                    <div className="victory-celebration-halo" aria-hidden />
+                    <p className="victory-celebration-goodjob-display">Good job!</p>
                   </div>
-                )}
-              </>
+                </div>
+              </div>
             ) : mode === "reveal" ? (
               <p
                 style={{
@@ -1311,14 +1487,17 @@ export function GameScreen({
                       onCardHover={() => {}}
                       onCardDrop={handleCardDrop}
                       connectSlotRef={registerConnectSlot}
-                      animateMount={mode === "play"}
+                      animateMount={false}
                       showSlotArrow={!activeChipId}
                       activeOriginCardId={activeOriginCardId}
                       showConnectSlotWhenResolved={false}
                       relationshipByCard={relationshipByCardForDisplay}
+                      relationshipLabelPossessive={relationshipLabelPossessive}
                       keepConnectorWhenRelationship={round === 3}
                       resolvedConnectorExtraOffsetPx={round === 3 ? 22 : 0}
                       birthDateByCard={birthDateByCardForDisplay}
+                      cardContentLinesByCard={cardContentLinesByCard}
+                      round={round}
                       photosOnly={
                         gamePhase === "preRoundIntro" || gamePhase === "transition"
                       }
@@ -1343,7 +1522,24 @@ export function GameScreen({
               >
                 <div className="game-title-enter">
                   {round === 1 ? (
-                    <GameInstruction />
+                    libraryDeck ? (
+                      <p
+                        style={{
+                          fontFamily: "var(--font-bitter), serif",
+                          fontWeight: 600,
+                          fontSize: "32px",
+                          color: "#FFFFFF",
+                          textAlign: "center",
+                        }}
+                      >
+                        Match each photo to the correct{" "}
+                        <span style={{ color: "rgba(255, 255, 255, 0.85)" }}>
+                          {libraryDeck.roundCategoryLabels[0] ?? "answer"}
+                        </span>
+                      </p>
+                    ) : (
+                      <GameInstruction />
+                    )
                   ) : round === 2 ? (
                     <p
                       style={{
@@ -1354,7 +1550,9 @@ export function GameScreen({
                         textAlign: "center",
                       }}
                     >
-                      Select their relationship to you
+                      {libraryDeck
+                        ? `Match each photo to the correct ${libraryDeck.roundCategoryLabels[1] ?? "answer"}`
+                        : "Select their relationship to you"}
                     </p>
                   ) : (
                     <p
@@ -1366,7 +1564,9 @@ export function GameScreen({
                         textAlign: "center",
                       }}
                     >
-                      Connect everyone to their birthday&apos;s
+                      {libraryDeck
+                        ? `Match each photo to the correct ${libraryDeck.roundCategoryLabels[2] ?? "answer"}`
+                        : "Connect everyone to their birthday\u0027s"}
                     </p>
                   )}
                 </div>
@@ -1387,9 +1587,12 @@ export function GameScreen({
                         activeOriginCardId={activeOriginCardId}
                         showConnectSlotWhenResolved={(round === 2 || round === 3) && gamePhase === "playing"}
                         relationshipByCard={relationshipByCardForDisplay}
+                        relationshipLabelPossessive={relationshipLabelPossessive}
                         keepConnectorWhenRelationship={round === 3}
                         resolvedConnectorExtraOffsetPx={round === 3 ? 22 : 0}
                         birthDateByCard={birthDateByCardForDisplay}
+                        cardContentLinesByCard={cardContentLinesByCard}
+                        round={round}
                         photosOnly={false}
                       />
                     </div>
@@ -1415,23 +1618,7 @@ export function GameScreen({
           </main>
         </div>
 
-        {/* Botones del bottom: pantallas finales = solo Continue con +32px padding bottom */}
-        {isFinalScreen ? (
-          <div
-            className="absolute left-1/2"
-            style={{
-              bottom: 0,
-              transform: "translateX(-50%)",
-              pointerEvents: "auto",
-              zIndex: 20,
-              paddingBottom: "32px",
-            }}
-          >
-            <GamePrimaryButton onClick={handleContinueAfterEndgame}>
-              Continue
-            </GamePrimaryButton>
-          </div>
-        ) : mode === "reveal" ? (
+        {mode === "reveal" ? (
           /* En reveal mode: Close game (izq) + Restart (der) - fuera del bloqueo de pointer-events */
           <div
             className="absolute left-1/2 flex items-center gap-4"
@@ -1493,7 +1680,11 @@ export function GameScreen({
 
       {/* Menú de pausa (overlay con blur + modal) */}
       {isPaused && (
-        <PauseMenu onResume={handleTogglePause} onQuit={() => {}} />
+        <PauseMenu
+          onResume={handleTogglePause}
+          onRestart={handlePauseRestart}
+          onQuit={() => {}}
+        />
       )}
 
       {showRoundIntroOverlays && (

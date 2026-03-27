@@ -5,51 +5,56 @@ import { useRouter } from "next/navigation";
 import { SoundButton } from "@/components/game/SoundButton";
 import { CloseButton } from "@/components/game/CloseButton";
 import { BackButton } from "@/components/game/BackButton";
-import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
+import { SpecsContinueButton } from "@/components/specs/SpecsContinueButton";
 import { SpecsOption } from "@/components/game/specs/SpecsOption";
 import {
   SPECS_PRIMARY_ACTION_BOTTOM_PX,
   SPECS_PRIMARY_ACTION_RIGHT_PX,
 } from "@/components/specs/specsFooterConstants";
+import {
+  SPECS_CHIP_BLOCK_MAX_WIDTH_PX,
+  getSpecsChipRowStyle,
+} from "@/components/specs/specsChipLayout";
+import { MAX_GAME_ROUNDS } from "@/lib/game/buildPersonGameLibrary";
 
 const HEADER_FOOTER_PADDING = 16;
 const HEADER_FOOTER_PADDING_X = 24;
-const GRID_WIDTH = 320 * 3 + 16 * 2;
 
-const CONTEXT_PILL_TEXT =
-  "Immediate family, Friends & Neighbors, Artist / Musicians";
+/** Máximo de question types en paso 3 = máximo de rondas en partida */
+export const MAX_QUESTION_SELECTIONS = MAX_GAME_ROUNDS;
 
-type TopicOptionId =
-  | "name"
-  | "relationships"
-  | "birthday"
-  | "job"
-  | "lives-in"
-  | "anniversary";
+export type TopicOptionId = string;
 
-/** Únicas opciones clicables; las demás se muestran deshabilitadas (mismo layout que el diseño). */
-const SELECTABLE_IDS: readonly TopicOptionId[] = [
-  "name",
-  "relationships",
-  "birthday",
-];
-
-function isSelectableId(id: TopicOptionId): boolean {
-  return SELECTABLE_IDS.includes(id);
+function iconForQuestionId(id: string): ReactNode {
+  const q =
+    id.includes("::") && id.split("::").length >= 2 ? id.split("::")[1]! : id;
+  if (q === "name" || q === "spouse_name" || q === "children_names") {
+    return <IconFamily />;
+  }
+  if (
+    q === "relationships" ||
+    q === "occupation" ||
+    q === "show_appearances"
+  ) {
+    return <IconTheaterMasks />;
+  }
+  if (
+    q === "birthday" ||
+    q === "anniversary" ||
+    q === "event_type" ||
+    q === "event_for_who" ||
+    q === "event_for_what"
+  ) {
+    return <IconMusicNote />;
+  }
+  if (q === "lives_in" || q === "specific_location") {
+    return <IconVipTag />;
+  }
+  if (q === "purpose" || q === "description" || q === "breed_or_type") {
+    return <IconLandscape />;
+  }
+  return <IconFamily />;
 }
-
-const TOPIC_OPTIONS: {
-  id: TopicOptionId;
-  label: string;
-  icon: ReactNode;
-}[] = [
-  { id: "name", label: "Name", icon: <IconFamily /> },
-  { id: "relationships", label: "Relationships", icon: <IconTheaterMasks /> },
-  { id: "birthday", label: "Birthday", icon: <IconMusicNote /> },
-  { id: "job", label: "Job", icon: <IconLandscape /> },
-  { id: "lives-in", label: "Lives In", icon: <IconVipTag /> },
-  { id: "anniversary", label: "Anniversary", icon: <IconMusicNote /> },
-];
 
 function IconFamily() {
   return (
@@ -109,7 +114,6 @@ function IconMusicNote() {
   );
 }
 
-/** Icono tipo imagen / paisaje (Job) */
 function IconLandscape() {
   return (
     <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -160,40 +164,51 @@ function IconVipTag() {
   );
 }
 
+export interface QuestionOption {
+  id: string;
+  label: string;
+}
+
 interface SpecsStep3TopicScreenProps {
-  onContinue: () => void;
+  /** Solo entradas con data en el pool actual */
+  questionOptions: QuestionOption[];
+  onContinue: (selected: TopicOptionId[]) => void;
   onBack?: () => void;
   isMuted?: boolean;
   onMuteToggle?: () => void;
+  focusContextPillText?: string;
 }
 
 /**
- * Specs paso 3 — textos y layout según diseño (tópicos / categorías).
- * Solo Name, Relationships y Birthday son clicables; Continue con al menos una de esas tres.
+ * Specs paso 3 — tipos de pregunta según datos cargados (sin opciones vacías).
  */
 export function SpecsStep3TopicScreen({
+  questionOptions,
   onContinue,
   onBack,
   isMuted = false,
   onMuteToggle = () => {},
+  focusContextPillText = "Your focus groups",
 }: SpecsStep3TopicScreenProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<TopicOptionId[]>([]);
 
+  /**
+   * Orden = orden de selección: 1.ª → Round 1, 2.ª → Round 2, 3.ª → Round 3.
+   * Máximo 3 tipos (= 3 rondas).
+   */
   const toggle = (id: TopicOptionId) => {
-    if (!isSelectableId(id)) return;
     setSelected((prev) => {
       const on = prev.includes(id);
       if (on) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_GAME_ROUNDS) return prev;
       return [...prev, id];
     });
   };
 
-  const byId = Object.fromEntries(
-    TOPIC_OPTIONS.map((o) => [o.id, o]),
-  ) as Record<TopicOptionId, (typeof TOPIC_OPTIONS)[number]>;
+  const atMaxSelections = selected.length >= MAX_GAME_ROUNDS;
 
-  const canContinue = SELECTABLE_IDS.some((id) => selected.includes(id));
+  const canContinue = selected.length >= 1;
 
   return (
     <div className="relative z-10 min-h-screen w-full overflow-hidden">
@@ -232,7 +247,7 @@ export function SpecsStep3TopicScreen({
             marginBottom: "8px",
           }}
         >
-          What topic should we ask you about?
+          What should we ask you about?
         </h1>
         <p
           className="w-full text-center"
@@ -245,46 +260,36 @@ export function SpecsStep3TopicScreen({
             margin: 0,
           }}
         >
-          Select 1 of 5
+          Select up to {MAX_GAME_ROUNDS} rounds (one topic + field each). Order =
+          round order.
         </p>
 
+        {/* Contexto del paso anterior: contenedor suave (no mismo lenguaje que los chips clicables) */}
         <div
-          className="mt-5 flex flex-wrap items-center justify-center gap-3"
-          style={{ maxWidth: `${GRID_WIDTH + 80}px` }}
+          className="mt-5 mx-auto text-center"
+          style={{
+            maxWidth: "min(560px, 92vw)",
+            padding: "10px 18px",
+            borderRadius: "12px",
+            background: "rgba(255, 255, 255, 0.05)",
+            cursor: "default",
+          }}
         >
-          <span
+          <p
             style={{
               fontFamily: "var(--font-bitter), serif",
               fontWeight: 500,
-              fontSize: "20px",
-              color: "#FFFFFF",
-            }}
-          >
-            for
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: "48px",
-              paddingLeft: "22px",
-              paddingRight: "22px",
-              borderRadius: "47.23px",
-              border: "1px solid rgba(255, 255, 255, 0.55)",
-              background: "rgba(255, 255, 255, 0.12)",
-              boxShadow:
-                "0 2px 0 0 rgba(255, 255, 255, 0.15) inset, 0 -2px 0 0 rgba(255, 255, 255, 0.2) inset",
-              fontFamily: "var(--font-bitter), serif",
               fontSize: "16px",
-              fontWeight: 600,
-              color: "rgba(255, 255, 255, 0.95)",
-              textAlign: "center",
-              lineHeight: 1.35,
+              lineHeight: 1.45,
+              margin: 0,
+              color: "rgba(255, 255, 255, 0.5)",
             }}
           >
-            {CONTEXT_PILL_TEXT}
-          </span>
+            <span style={{ color: "rgba(255, 255, 255, 0.4)" }}>for </span>
+            <span style={{ color: "rgba(255, 255, 255, 0.7)" }}>
+              {focusContextPillText}
+            </span>
+          </p>
         </div>
       </div>
 
@@ -294,55 +299,42 @@ export function SpecsStep3TopicScreen({
       >
         <div
           className="flex w-full flex-col items-center"
-          style={{ maxWidth: `${GRID_WIDTH}px` }}
+          style={{ maxWidth: `${SPECS_CHIP_BLOCK_MAX_WIDTH_PX}px` }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 320px)",
-              gap: "16px",
-              justifyItems: "center",
-              justifyContent: "center",
-              width: "100%",
-            }}
-          >
-            {(["name", "relationships", "birthday"] as const).map((id, index) => {
-              const opt = byId[id];
-              return (
-                <div
-                  key={id}
-                  className="specs-option-enter"
-                  style={{ animationDelay: `${index * 70}ms` }}
-                >
-                  <SpecsOption
-                    label={opt.label}
-                    icon={opt.icon}
-                    selected={selected.includes(id)}
-                    disabled={!isSelectableId(id)}
-                    onClick={() => toggle(id)}
-                  />
-                </div>
-              );
-            })}
-            {(["job", "lives-in", "anniversary"] as const).map((id, index) => {
-              const opt = byId[id];
-              return (
-                <div
-                  key={id}
-                  className="specs-option-enter"
-                  style={{ animationDelay: `${(index + 3) * 70}ms` }}
-                >
-                  <SpecsOption
-                    label={opt.label}
-                    icon={opt.icon}
-                    selected={false}
-                    disabled
-                    onClick={() => toggle(id)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          {questionOptions.length === 0 ? (
+            <p
+              className="text-center text-white/80"
+              style={{ fontFamily: "var(--font-bitter), serif", fontSize: "20px" }}
+            >
+              No question types available for this selection. Add more fields in
+              Content or adjust your focus.
+            </p>
+          ) : (
+            <div style={getSpecsChipRowStyle(3)}>
+              {questionOptions.map((opt, index) => {
+                const isSelected = selected.includes(opt.id);
+                const disabled = atMaxSelections && !isSelected;
+                return (
+                  <div
+                    key={opt.id}
+                    className="specs-option-enter"
+                    style={{ animationDelay: `${index * 70}ms` }}
+                  >
+                    <SpecsOption
+                      label={opt.label}
+                      icon={iconForQuestionId(opt.id)}
+                      selected={isSelected}
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled) return;
+                        toggle(opt.id);
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -353,12 +345,12 @@ export function SpecsStep3TopicScreen({
           bottom: `${SPECS_PRIMARY_ACTION_BOTTOM_PX}px`,
         }}
       >
-        <GamePrimaryButton
-          onClick={onContinue}
-          disabled={!canContinue}
+        <SpecsContinueButton
+          onClick={() => onContinue(selected)}
+          disabled={!canContinue || questionOptions.length === 0}
         >
           Continue
-        </GamePrimaryButton>
+        </SpecsContinueButton>
       </div>
     </div>
   );

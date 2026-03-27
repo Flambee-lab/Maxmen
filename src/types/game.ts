@@ -1,3 +1,6 @@
+/** Dificultad elegida en intro / configuración de partida */
+export type GameDifficulty = "easy" | "medium" | "hard";
+
 export interface PhotoCard {
   id: string;
   name: string;

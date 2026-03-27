@@ -6,6 +6,8 @@
   --font-bitter: "Bitter", Georgia, serif;
   --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
   /* Colores del diseño */
+  /** Fondo principal del juego (Background.tsx) */
+  --bg-play-blue: #153c71;
   --bg-dark-blue: #1e2c51;
   --bg-medium-blue: #374f7a;
   --bg-light-blue: #4c76be;
@@ -16,7 +18,7 @@
 }
 
 body {
-  background-color: var(--bg-dark-blue);
+  background-color: var(--bg-play-blue);
   color: var(--text-white);
   overflow-x: hidden;
   font-family: var(--font-bitter), serif;
@@ -92,6 +94,30 @@ body {
 .drag-arrow {
   pointer-events: none;
   z-index: 1000;
+}
+
+/* Specs Continue: pulso suave en el halo */
+@keyframes specs-continue-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.specs-continue-glow {
+  animation: specs-continue-glow-pulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .specs-continue-glow {
+    animation: none;
+    opacity: 0.65;
+  }
 }
 
 /* Specs selectors: sin outline/ring de foco (solo borde #101665 en selected) */
@@ -215,12 +241,6 @@ body {
   }
 }
 
-/* CoachScreen: ocultar cards del layer base (solo se ven en spotlight window) */
-.coach-screen .coach-cards-container {
-  opacity: 0;
-  visibility: hidden;
-}
-
 /* ========== Calm / Cognitive / Therapeutic – animaciones suaves ========== */
 
 /* Título de instrucción: fade-in suave (350–600ms), sin bounce */
@@ -242,6 +262,16 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Intro/transición: solo fade (sin translate) para no competir con el giro 3D */
+@keyframes game-card-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -313,6 +343,9 @@ body {
 .game-card-enter {
   animation: game-card-enter 450ms ease-out both;
 }
+.game-card-enter-fade {
+  animation: game-card-enter-fade 450ms ease-out both;
+}
 .game-chip-enter {
   animation: game-chip-enter 420ms ease-out both;
 }
@@ -346,42 +379,101 @@ body {
   }
 }
 
-.round-transition-flip {
-  perspective: 1200px;
+/* Escena intro/transición: categoría + cartas; fade out antes de playing */
+.round-transition-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--round-fade-out-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes round-card-spin-y {
+.round-transition-scene--fade-out {
+  opacity: 0;
+}
+
+.round-transition-flip {
+  perspective: 1200px;
+  position: relative;
+  overflow: visible;
+}
+
+/*
+ * Intro: cartas suben desde abajo con arco y alternancia izq/der (vars --deal-x / --deal-rz).
+ * Stagger por nth-child. Sin HUD ni overlays extra.
+ */
+.round-transition-flip .game-card-hover-scale:nth-child(odd) {
+  --deal-x: -36px;
+  --deal-rz: -7deg;
+}
+
+.round-transition-flip .game-card-hover-scale:nth-child(even) {
+  --deal-x: 36px;
+  --deal-rz: 7deg;
+}
+
+@keyframes round-card-deal-gaming {
   0% {
-    transform: rotateY(0deg);
+    opacity: 0;
+    transform: translate3d(var(--deal-x, 0px), 56px, 0) rotateZ(var(--deal-rz, 0deg)) scale(0.82);
+    filter: blur(5px);
   }
-  50% {
-    transform: rotateY(180deg);
+  58% {
+    opacity: 1;
+    transform: translate3d(0, -10px, 0) rotateZ(0deg) scale(1.06);
+    filter: blur(0);
+  }
+  78% {
+    transform: translate3d(0, 4px, 0) scale(0.99);
   }
   100% {
-    transform: rotateY(360deg);
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
   }
 }
 
 .round-transition-flip .game-card-shell {
   transform-style: preserve-3d;
-  backface-visibility: hidden;
-  animation: round-card-spin-y 2900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: none;
 }
 
-.round-transition-flip > div > :nth-child(1) .game-card-shell {
+.round-transition-flip .game-card-hover-scale {
+  transition: none;
+  animation: round-card-deal-gaming 900ms cubic-bezier(0.34, 1.45, 0.45, 1) both;
+  will-change: transform, filter, opacity;
+}
+
+.round-transition-flip .game-card-hover-scale:nth-child(1) {
   animation-delay: 0ms;
 }
-
-.round-transition-flip > div > :nth-child(2) .game-card-shell {
-  animation-delay: 220ms;
+.round-transition-flip .game-card-hover-scale:nth-child(2) {
+  animation-delay: 72ms;
+}
+.round-transition-flip .game-card-hover-scale:nth-child(3) {
+  animation-delay: 144ms;
+}
+.round-transition-flip .game-card-hover-scale:nth-child(4) {
+  animation-delay: 216ms;
+}
+.round-transition-flip .game-card-hover-scale:nth-child(5) {
+  animation-delay: 288ms;
+}
+.round-transition-flip .game-card-hover-scale:nth-child(6) {
+  animation-delay: 360ms;
 }
 
-.round-transition-flip > div > :nth-child(3) .game-card-shell {
-  animation-delay: 440ms;
+/*
+ * En intro/transición no usamos game-card-enter: la animación va en .game-card-hover-scale
+ * (animateMount=false en ese CardStage).
+ */
+.round-transition-flip .game-card-enter-fade {
+  animation: none !important;
 }
 
-.round-transition-flip > div > :nth-child(4) .game-card-shell {
-  animation-delay: 660ms;
+.round-transition-flip .game-card-enter {
+  animation: none !important;
 }
 
 @keyframes round-transition-title-enter {
@@ -405,7 +497,7 @@ body {
   width: 100%;
 }
 
-/* Categoría centrada sin re-animar (permanece estática mientras giran las cartas) */
+/* Categoría centrada sin re-animar (permanece estática mientras entran las cartas) */
 .round-transition-title-static {
   animation: none;
   opacity: 1;
@@ -603,10 +695,317 @@ body {
   animation: game-timer-low-pulse 1.2s ease-in-out infinite;
 }
 
+/* ========== Endgame victoria (éxito): motion + feedback concretos ========== */
+.success-endgame-root {
+  position: relative;
+  width: 100%;
+}
+
+/* Zona central (grid en main): título + cartas centrados en la franja sobre el padding del CTA */
+.success-endgame-root--results.success-endgame-results-layout {
+  min-height: 0;
+}
+
+.success-endgame-content--results {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  /* Altura explícita vía Tailwind h-full: el grupo título+cartas se centra en la franja real sobre el CTA */
+}
+
+/* 1) Título: 0.9 → 1.05 → 1, bounce, ~520ms */
+@keyframes success-endgame-title-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.success-endgame-headline {
+  text-align: center;
+  transform-origin: center center;
+  animation: success-endgame-title-bounce 520ms cubic-bezier(0.34, 1.45, 0.52, 1) both;
+}
+
+.success-endgame-goodjob {
+  font-family: var(--font-bitter), serif;
+  font-weight: 700;
+  font-size: 28px;
+  color: #ffffff;
+  margin: 0 0 8px;
+}
+
+.success-endgame-subtitle {
+  font-family: var(--font-bitter), serif;
+  font-weight: 700;
+  font-size: 32px;
+  color: #ffffff;
+  margin: 0;
+}
+
+/* 2) Cartas: stagger 100ms, entrada fade + translateY */
+@keyframes success-endgame-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.success-endgame-cards .success-endgame-card-enter {
+  animation: success-endgame-card-in 0.58s cubic-bezier(0.25, 0.9, 0.32, 1) both;
+}
+
+.success-endgame-cards .success-endgame-card-enter:nth-child(1) {
+  animation-delay: 0s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+/* 3) Glow fijo verde + un pulso scale 1 → 1.03 → 1 (sin pelear con transition del shell base) */
+.success-endgame-card-shell {
+  position: relative;
+  transition: none;
+  box-shadow: 0 0 24px rgba(50, 187, 113, 0.25), 0 10px 24px rgba(0, 0, 0, 0.2);
+  animation: success-endgame-card-pulse 0.85s cubic-bezier(0.34, 1.2, 0.64, 1) both;
+}
+
+@keyframes success-endgame-card-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.success-endgame-cards .success-endgame-card-enter:nth-child(1) .success-endgame-card-shell {
+  animation-delay: 0.62s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(2) .success-endgame-card-shell {
+  animation-delay: 0.72s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(3) .success-endgame-card-shell {
+  animation-delay: 0.82s;
+}
+.success-endgame-cards .success-endgame-card-enter:nth-child(4) .success-endgame-card-shell {
+  animation-delay: 0.92s;
+}
+
+/* 6) Continue: escala + glow (loop lento) — delay 800ms en JS */
+@keyframes success-endgame-continue-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(163, 191, 249, 0.42), 0 0 36px rgba(255, 255, 255, 0.14),
+      0 0 52px rgba(120, 160, 230, 0.18);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 32px rgba(163, 191, 249, 0.55), 0 0 48px rgba(230, 240, 255, 0.22),
+      0 0 64px rgba(140, 175, 245, 0.25);
+  }
+}
+
+.success-endgame-continue-wrap {
+  border-radius: 32px;
+  transform-origin: center center;
+  animation: success-endgame-continue-breathe 4s ease-in-out infinite;
+}
+
+/* ========== Victoria 2 pasos: confeti (rectángulos + tiras) + “Good job!” ========== */
+.victory-confetti-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.victory-confetti-root--half {
+  opacity: 0.68;
+}
+
+.victory-confetti-piece {
+  position: absolute;
+  top: -10%;
+  opacity: 0.72;
+  will-change: transform;
+  animation: victory-confetti-fall linear infinite;
+  border-radius: 1px;
+}
+
+/* Rectángulos compactos */
+.victory-confetti-piece--rect-w {
+  width: 9px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.25);
+}
+
+.victory-confetti-piece--rect-b {
+  width: 7px;
+  height: 11px;
+  background: rgba(30, 44, 81, 0.78);
+  box-shadow: 0 0 5px rgba(20, 32, 58, 0.35);
+}
+
+/* Tiras (no círculos) */
+.victory-confetti-piece--strip-w {
+  width: 3px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  border-radius: 1px;
+}
+
+.victory-confetti-piece--strip-b {
+  width: 4px;
+  height: 20px;
+  background: rgba(26, 40, 72, 0.75);
+  border-radius: 1px;
+}
+
+@keyframes victory-confetti-fall {
+  0% {
+    transform: translateY(0) translateX(0) rotate(var(--spin, 0deg));
+  }
+  100% {
+    transform: translateY(120vh) translateX(var(--drift, 24px))
+      rotate(calc(var(--spin, 0deg) + 720deg));
+  }
+}
+
+.victory-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 44, 81, 0.94);
+  backdrop-filter: blur(3px);
+  transition: opacity 0.52s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.victory-celebration-overlay.is-out {
+  opacity: 0;
+}
+
+.victory-celebration-overlay .victory-confetti-root {
+  z-index: 0;
+}
+
+.victory-celebration-title-stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 56px;
+  transform-origin: center center;
+  animation: victory-celebration-goodjob-in 500ms cubic-bezier(0.34, 1.45, 0.52, 1) both;
+}
+
+.victory-celebration-halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(160vw, 720px);
+  height: min(160vw, 720px);
+  max-width: min(96vw, 720px);
+  max-height: min(96vw, 720px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 48%,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.06) 38%,
+    rgba(255, 255, 255, 0.02) 58%,
+    transparent 78%
+  );
+  filter: blur(42px);
+  opacity: 0.88;
+}
+
+/* “Good job!” — misma familia/peso que el subtítulo, tamaño mayor (protagonista) */
+.victory-celebration-goodjob-display {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-bitter), serif;
+  font-weight: 700;
+  font-size: clamp(2.5rem, 6vw, 3.25rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+
+@keyframes victory-celebration-goodjob-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  58% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========== Coach: borde 10% blanco, sin sombra ni animación ========== */
+.coach-spotlight-frame {
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+
+.coach-spotlight-frame__clip {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
 /* Respetar prefers-reduced-motion: desactivar animaciones */
 @media (prefers-reduced-motion: reduce) {
   .game-title-enter,
   .game-card-enter,
+  .game-card-enter-fade,
   .game-chip-enter,
   .game-overlay-fade-in,
   .game-nametag-enter,
@@ -622,14 +1021,21 @@ body {
   .intro-screen-enter {
     animation: none !important;
   }
-  .round-transition-flip .game-card-shell {
+  .round-transition-flip .game-card-shell,
+  .round-transition-flip .game-card-hover-scale {
     animation: none !important;
+  }
+  .round-transition-flip .game-card-hover-scale {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
   }
   .round-transition-title-enter {
     animation: none !important;
   }
   .game-title-enter,
   .game-card-enter,
+  .game-card-enter-fade,
   .intro-screen-enter {
     opacity: 1;
     transform: none;
@@ -663,6 +1069,31 @@ body {
   }
   .specs-tip-halo {
     opacity: 0.18;
+    transform: none;
+  }
+  .success-endgame-headline,
+  .success-endgame-cards .success-endgame-card-enter {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .success-endgame-card-shell {
+    animation: none !important;
+    transform: none;
+    box-shadow: 0 0 24px rgba(50, 187, 113, 0.22);
+  }
+  .success-endgame-continue-wrap {
+    animation: none !important;
+    transform: none;
+    box-shadow: none;
+  }
+  .victory-confetti-piece {
+    animation: none !important;
+    opacity: 0.35;
+  }
+  .victory-celebration-title-stack {
+    animation: none !important;
+    opacity: 1;
     transform: none;
   }
 }

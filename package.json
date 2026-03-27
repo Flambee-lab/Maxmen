@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:turbo": "next dev --turbopack",
     "dev:webpack": "next dev",
     "dev:webpack:clean": "npm run clean && next dev",
-    "dev:local": "next dev --turbopack -H 127.0.0.1 -p 3000",
-    "dev:turbo": "next dev --turbopack",
+    "dev:local": "next dev -H 127.0.0.1 -p 3000",
     "clean": "rm -rf .next node_modules/.cache .turbo",
     "dev:clean": "npm run clean && next dev --turbopack",
     "dev:clean:local": "npm run clean && next dev --turbopack -H 127.0.0.1 -p 3000",

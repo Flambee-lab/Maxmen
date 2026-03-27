@@ -21,6 +21,8 @@ interface GameCardProps {
   showConnectSlotWhenResolved?: boolean;
   /** Texto secundario embebido en el name container (Round 2/3) */
   relationshipLabel?: string;
+  /** Si true (default), antepone "is my …" al relationshipLabel (relaciones entre personas). */
+  relationshipLabelPossessive?: boolean;
   /** Si true, mantiene visible el conector aun con relationshipLabel (Round 3) */
   keepConnectorWhenRelationship?: boolean;
   /** Offset vertical extra para conector en estado resuelto */
@@ -29,6 +31,15 @@ interface GameCardProps {
   birthDateLabel?: string;
   /** Solo foto (intro previa a ronda 1): sin connect slot ni elementos extra */
   photosOnly?: boolean;
+  /** Pantalla final de victoria (resultados): sin conector bajo la foto */
+  hideConnectSlot?: boolean;
+  /** Ronda actual (1–3): visibilidad del slot con nametag apilado */
+  round?: 1 | 2 | 3;
+  /**
+   * Contenido del nametag acumulado por rondas (orden = orden de selección en Specs paso 3).
+   * Si está definido (incluido []), sustituye el layout fijo name + relationship + birthday.
+   */
+  cardContentLines?: string[];
 }
 
 const CARD_SIZE = 208;
@@ -56,14 +67,35 @@ export function GameCard({
   isOriginActive = false,
   showConnectSlotWhenResolved = false,
   relationshipLabel,
+  relationshipLabelPossessive = true,
   keepConnectorWhenRelationship = false,
   resolvedConnectorExtraOffsetPx = 0,
   birthDateLabel,
   photosOnly = false,
+  hideConnectSlot = false,
+  cardContentLines,
+  round,
 }: GameCardProps) {
   const isIncorrect = cardFeedback === "incorrect";
   const isCorrectFeedback = cardFeedback === "correct";
-  const isResolved = !!resolvedChipName;
+  /** Solo modo apilado cuando hay líneas reales; `[]` no debe anular el nametag legacy */
+  const useDynamicNametag =
+    cardContentLines !== undefined && cardContentLines.length > 0;
+  const isResolvedLegacy = !!resolvedChipName;
+  const hasDynamicNametag = useDynamicNametag;
+  const hasLegacyNametag = !useDynamicNametag && isResolvedLegacy;
+  /** Con stack dinámico, el slot depende de la ronda y de qué falta conectar (no del nombre prefijado en r2/3) */
+  const showConnectSlotDynamic =
+    useDynamicNametag &&
+    round != null &&
+    (round === 1
+      ? !resolvedChipName
+      : round === 2
+        ? !relationshipLabel
+        : !birthDateLabel);
+  const connectSlotBelowNametag = useDynamicNametag
+    ? hasDynamicNametag && showConnectSlotWhenResolved && showConnectSlotDynamic
+    : isResolvedLegacy && showConnectSlotWhenResolved;
 
   return (
     <div
@@ -177,8 +209,45 @@ export function GameCard({
         )}
       </div>
 
-      {isResolved && !photosOnly ? (
-        /* NameTag cuando la card está resuelta (aparición suave) */
+      {hasDynamicNametag && !photosOnly ? (
+        <div
+          className="game-nametag-enter absolute pointer-events-none"
+          style={{
+            left: "50%",
+            bottom: 0,
+            transform: "translateX(-50%) translateY(50%)",
+            display: "flex",
+            flexDirection: "column",
+            width: `${NAME_TAG_WIDTH}px`,
+            padding: `${NAME_TAG_PADDING}px`,
+            justifyContent: "center",
+            alignItems: "center",
+            borderRadius: `${NAME_TAG_RADIUS}px`,
+            border: `${NAME_TAG_BORDER}px solid rgba(255, 255, 255, 0.20)`,
+            background: "#284B79",
+            zIndex: 3,
+          }}
+        >
+          {cardContentLines!.map((line, i) => (
+            <span
+              key={`${i}-${line.slice(0, 24)}`}
+              style={{
+                marginTop: i > 0 ? "12px" : 0,
+                fontFamily: "var(--font-bitter), serif",
+                fontWeight: 600,
+                fontSize: i === 0 ? "24px" : "18px",
+                color: i === 0 ? "#FFFFFF" : "rgba(255, 255, 255, 0.85)",
+                textAlign: "center",
+                lineHeight: 1.15,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {line}
+            </span>
+          ))}
+        </div>
+      ) : hasLegacyNametag && !photosOnly ? (
+        /* NameTag legacy (mocks sin cardContentLines) */
         <div
           className="game-nametag-enter absolute pointer-events-none"
           style={{
@@ -225,7 +294,9 @@ export function GameCard({
                 whiteSpace: "nowrap",
               }}
             >
-              {`is my ${relationshipLabel}`}
+              {relationshipLabelPossessive
+                ? `is my ${relationshipLabel}`
+                : relationshipLabel}
             </span>
           )}
           {birthDateLabel && (
@@ -262,10 +333,13 @@ export function GameCard({
       ) : null}
 
       {!photosOnly &&
-        (!isResolved ||
-          (showConnectSlotWhenResolved &&
-            (!relationshipLabel || keepConnectorWhenRelationship))) &&
-        !birthDateLabel && (
+        !hideConnectSlot &&
+        (useDynamicNametag
+          ? showConnectSlotDynamic
+          : (!isResolvedLegacy ||
+              (showConnectSlotWhenResolved &&
+                (!relationshipLabel || keepConnectorWhenRelationship))) &&
+            !birthDateLabel) && (
         /* Connect slot cuando NO está resuelta o cuando se solicita mostrarlo bajo NameTag */
         <div
           ref={(el) => {
@@ -280,8 +354,7 @@ export function GameCard({
           style={{
             left: "50%",
             bottom: 0,
-            transform:
-              isResolved && showConnectSlotWhenResolved
+            transform: connectSlotBelowNametag
                 ? `translateX(-50%) translateY(calc(102% + 8px + ${resolvedConnectorExtraOffsetPx}px))`
                 : "translateX(-50%) translateY(50%)",
             width: `${CONNECT_SLOT_SIZE}px`,

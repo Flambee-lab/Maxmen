@@ -4,7 +4,7 @@ interface TimerProps {
   value: number;
   formatAsTime?: boolean;
   showRevealIcon?: boolean;
-  /** Cuando true (p. ej. ≤20s restantes), círculo rojo y pulso de alerta */
+  /** Cuando true (p. ej. últimos segundos de ronda), círculo rojo y pulso de alerta */
   isLowTime?: boolean;
 }
 
@@ -14,7 +14,7 @@ const ICON_SIZE = 24;
 function formatMmSs(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function Timer({

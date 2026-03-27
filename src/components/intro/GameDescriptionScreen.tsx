@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Background } from "@/components/game/Background";
 import { SoundButton } from "@/components/game/SoundButton";
@@ -8,25 +8,86 @@ import { CloseButton } from "@/components/game/CloseButton";
 import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
 import { playClickSfx } from "@/lib/clickSfx";
 import { IntroIllustrationSvg } from "@/components/intro/IntroIllustrationSvg";
+import type { GameDifficulty } from "@/types/game";
+import { DEFAULT_SECONDS_PER_ROUND } from "@/lib/gameRoundConfig";
+
+const DIFFICULTY_OPTIONS: ReadonlyArray<{ value: GameDifficulty; label: string }> = [
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+];
+
+const DIFFICULTY_LABEL: Record<GameDifficulty, string> = {
+  easy: "Easy",
+  medium: "Medium",
+  hard: "Hard",
+};
+
+const IMAGES_PER_ROUND_LABEL: Record<GameDifficulty, string> = {
+  easy: "3 images per round",
+  medium: "4 images per round",
+  hard: "5 images per round",
+};
+
+/** Panel del listado (no usar <select>: el OS pinta fondo negro y otra tipografía) */
+const difficultyDropdownPanelStyle: CSSProperties = {
+  border: "2px solid rgba(255, 255, 255, 0.38)",
+  background:
+    "linear-gradient(180deg, rgba(21, 60, 113, 0.97) 0%, rgba(18, 48, 90, 0.98) 50%, rgba(15, 40, 78, 0.99) 100%)",
+  boxShadow:
+    "0 16px 48px rgba(0, 0, 0, 0.45), 0 0 24px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+  backdropFilter: "blur(14px)",
+};
+
+const difficultyOptionTypography: CSSProperties = {
+  fontFamily: "var(--font-bitter), serif",
+  fontWeight: 700,
+  fontSize: "24px",
+  lineHeight: 1,
+  color: "#FFFFFF",
+};
+
+/** Mismo tono que `tipText` en `/game` (Specs paso 1) + resumen de la intro */
+const INTRO_INFO_TIP_PARAGRAPHS: readonly string[] = [
+  "A question will appear above a group of your memory images. Quickly match each answer to its correct image. Try to get the fastest perfect score.",
+  "Match each photo with best answer to the question. Be fast.",
+];
+
+/** Quick Play + selector de dificultad: mismo shell secundario (hover coherente) */
+function getSecondaryInteractiveShellStyle(hovered: boolean): CSSProperties {
+  return {
+    borderRadius: "32px",
+    cursor: "pointer",
+    border: hovered
+      ? "2px solid rgba(255, 255, 255, 0.52)"
+      : "2px solid rgba(255, 255, 255, 0.40)",
+    background: hovered
+      ? "linear-gradient(232deg, rgba(255, 255, 255, 0.00) -43.91%, rgba(255, 255, 255, 0.22) 42.3%)"
+      : "linear-gradient(232deg, rgba(255, 255, 255, 0.00) -43.91%, rgba(255, 255, 255, 0.15) 42.3%)",
+    boxShadow: hovered
+      ? "0 0 28px rgba(255, 255, 255, 0.12), 0 0 1px rgba(255, 255, 255, 0.35), 0 46px 34px 0 rgba(0, 0, 0, 0.12), 0 -16px 16px 0 rgba(255, 255, 255, 0.14) inset, 0 2px 4px 0 rgba(0, 0, 0, 0.12) inset"
+      : "0 0 20px rgba(255, 255, 255, 0.07), 0 42px 32.4px 0 rgba(0, 0, 0, 0.10), 0 -14px 14.2px 0 rgba(255, 255, 255, 0.10) inset, 0 1px 0 0 rgba(255, 255, 255, 0.14) inset",
+    transition:
+      "background 160ms ease-out, box-shadow 180ms ease-out, border-color 160ms ease-out",
+  };
+}
 
 interface GameDescriptionScreenProps {
-  highScore?: number;
   isMuted?: boolean;
   onMuteToggle?: () => void;
   onCustomStart?: (settings: {
     secondsPerRound: number;
-    difficulty: "easy" | "medium";
+    difficulty: GameDifficulty;
   }) => void;
   onQuickPlayStart?: (settings: {
     secondsPerRound: number;
-    difficulty: "easy" | "medium";
+    difficulty: GameDifficulty;
   }) => void;
   /** Si true, no renderiza Background (lo provee el padre) */
   embedded?: boolean;
 }
 
 export function GameDescriptionScreen({
-  highScore = 0,
   isMuted = false,
   onMuteToggle = () => {},
   onCustomStart,
@@ -35,18 +96,56 @@ export function GameDescriptionScreen({
 }: GameDescriptionScreenProps) {
   const router = useRouter();
 
-  const defaultSeconds = typeof highScore === "number" && highScore > 0 ? highScore : 58;
-  const [secondsPerRound, setSecondsPerRound] = useState(defaultSeconds);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium">("medium");
+  /** Segundos por ronda: no usar highScore (podía ser 60 u otro valor y pisar la duración). */
+  const [secondsPerRound, setSecondsPerRound] = useState(DEFAULT_SECONDS_PER_ROUND);
+  const [difficulty, setDifficulty] = useState<GameDifficulty>("medium");
+  const [difficultyHovered, setDifficultyHovered] = useState(false);
+  const [difficultyMenuOpen, setDifficultyMenuOpen] = useState(false);
+  const [quickPlayHovered, setQuickPlayHovered] = useState(false);
+  const [introInfoOpen, setIntroInfoOpen] = useState(false);
+  const difficultyDropdownRef = useRef<HTMLDivElement>(null);
 
-  const MIN_SECONDS = 30;
+  useEffect(() => {
+    if (!introInfoOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIntroInfoOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [introInfoOpen]);
+
+  useEffect(() => {
+    if (!difficultyMenuOpen) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      const el = difficultyDropdownRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setDifficultyMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDifficultyMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDocPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onDocPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [difficultyMenuOpen]);
+
+  const MIN_SECONDS = DEFAULT_SECONDS_PER_ROUND;
   const MAX_SECONDS = 120;
   const STEP_SECONDS = 1;
 
   const clampSeconds = (n: number) =>
     Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, n));
 
-  /** Misma tipografía en “Fastest Perfect Score” y “4 images per round” */
+  /** Misma tipografía en “Fastest Perfect Score” y la etiqueta bajo dificultad */
   const controlsBottomLabelStyle: CSSProperties = {
     fontFamily: "var(--font-bitter), serif",
     fontWeight: 600,
@@ -77,7 +176,7 @@ export function GameDescriptionScreen({
 
   const content = (
     <>
-      <div className="relative z-10 w-full min-h-screen flex flex-col items-center justify-start px-6 overflow-hidden intro-screen-enter">
+      <div className="relative z-10 flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-col items-center overflow-hidden px-6 intro-screen-enter">
         {/* Top Right Icons - Same position as TopHUD */}
         <div
           className="absolute right-6 z-20"
@@ -92,8 +191,8 @@ export function GameDescriptionScreen({
           <CloseButton onClick={handleClose} />
         </div>
 
-        {/* Contenedor principal (permite que los botones vayan abajo con mt-auto) */}
-        <main className="w-full flex flex-col items-center max-w-2xl py-8 flex-1">
+        {/* Mismo flujo y espaciados que el diseño original; solo viewport fijo (100dvh) para evitar scroll */}
+        <main className="flex min-h-0 w-full max-w-2xl flex-1 flex-col items-center overflow-hidden py-8">
           {/* Game Concept Illustration - centrada en viewport (SVG inline para poder interactuar con elementos) */}
           <div className="w-full flex items-center justify-center" style={{ width: "312px", height: "180px" }}>
             <IntroIllustrationSvg
@@ -136,7 +235,7 @@ export function GameDescriptionScreen({
                 alignItems: "center",
               }}
             >
-              {/* Fila 1: celda izquierda vacía; “58 sec” centrado sobre el texto de abajo (col 2) */}
+              {/* Fila 1: celda izquierda vacía; segundos/ronda centrados sobre el texto de abajo (col 2) */}
               <div
                 aria-hidden
                 style={{
@@ -161,8 +260,8 @@ export function GameDescriptionScreen({
                 <span
                   style={{
                     fontFamily: "var(--font-bitter), serif",
-                    fontWeight: 600,
-                    fontSize: "32px",
+                    fontWeight: 700,
+                    fontSize: "24px",
                     color: "#FFFFFF",
                     textAlign: "center",
                     lineHeight: "1",
@@ -226,11 +325,21 @@ export function GameDescriptionScreen({
                   flexGrow: 1,
                 }}
               />
-              {/* Info al final del divisor vertical */}
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              {/* Info al final del divisor vertical — abre modal (mismo copy que tip en Specs / game) */}
+              <button
+                type="button"
+                className="game-focus-visible flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
                 style={{
                   backgroundColor: "#FFFFFF",
+                  cursor: "pointer",
+                  border: "none",
+                  padding: 0,
+                }}
+                aria-label="How to play"
+                onClick={() => {
+                  playClickSfx();
+                  setDifficultyMenuOpen(false);
+                  setIntroInfoOpen(true);
                 }}
               >
                 <span
@@ -243,93 +352,140 @@ export function GameDescriptionScreen({
                 >
                   i
                 </span>
-              </div>
+              </button>
             </div>
 
               <div className="flex min-h-0 min-w-0 flex-1 justify-start pl-4 sm:pl-5">
             <div
-              className="relative flex w-full max-w-[300px] shrink-0 flex-col items-center"
+              className="relative flex w-full max-w-[240px] shrink-0 flex-col items-center"
             >
-              {/* Difficulty dropdown */}
+              {/* Difficulty: listado custom (el <select> nativo usa UI del SO: fondo negro, otra tipografía) */}
               <div
-                className="border-2 border-[rgba(255,255,255,0.2)] border-solid rounded-[32px] content-stretch flex flex-col items-center justify-center"
-                style={{
-                  width: "100%",
-                  height: "68px",
-                  padding: "8px 12px",
-                  boxSizing: "border-box",
-                  overflow: "hidden",
-                }}
+                ref={difficultyDropdownRef}
+                className="relative w-full"
+                style={{ zIndex: difficultyMenuOpen ? 50 : undefined }}
+                onMouseEnter={() => setDifficultyHovered(true)}
+                onMouseLeave={() => setDifficultyHovered(false)}
               >
-                <div
-                  className="relative flex items-center justify-center w-full"
-                  style={{ height: "100%" }}
+                <button
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={difficultyMenuOpen}
+                  aria-label="Select difficulty"
+                  className="game-focus-visible content-stretch flex w-full flex-col items-center justify-center"
+                  onClick={() => {
+                    setDifficultyMenuOpen((o) => !o);
+                  }}
+                  style={{
+                    width: "100%",
+                    height: "62px",
+                    padding: "6px 12px",
+                    boxSizing: "border-box",
+                    ...getSecondaryInteractiveShellStyle(
+                      difficultyHovered || difficultyMenuOpen
+                    ),
+                  }}
                 >
-                  <select
-                    value={difficulty}
-                    onChange={(e) =>
-                      setDifficulty(
-                        (e.target.value as "easy" | "medium") || "medium"
-                      )
-                    }
-                    className="appearance-none bg-transparent text-white"
-                    style={{
-                      fontFamily: "var(--font-bitter), serif",
-                      fontWeight: 600,
-                      fontSize: "32px",
-                      lineHeight: "1",
-                      color: "#FFFFFF",
-                      textAlign: "center",
-                      width: "100%",
-                      height: "100%",
-                      outline: "none",
-                      border: "none",
-                      padding: 0,
-                      margin: 0,
-                      display: "block",
-                    }}
-                    aria-label="Select difficulty"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                  </select>
                   <div
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      right: "8px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      pointerEvents: "none",
-                    }}
+                    className="relative flex w-full items-center justify-center"
+                    style={{ height: "100%" }}
                   >
-                    <svg
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
+                    <span
+                      style={{
+                        ...difficultyOptionTypography,
+                        textAlign: "center",
+                        width: "100%",
+                        paddingLeft: "32px",
+                        paddingRight: "32px",
+                        boxSizing: "border-box",
+                      }}
                     >
-                      <path
-                        d="M7 10l5 5 5-5"
-                        stroke="rgba(255,255,255,0.9)"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                      {DIFFICULTY_LABEL[difficulty]}
+                    </span>
+                    <span
+                      aria-hidden
+                      style={{
+                        position: "absolute",
+                        right: "8px",
+                        top: "50%",
+                        transform: difficultyMenuOpen
+                          ? "translateY(-50%) rotate(180deg)"
+                          : "translateY(-50%)",
+                        transition: "transform 160ms ease-out",
+                        pointerEvents: "none",
+                        display: "flex",
+                      }}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M7 10l5 5 5-5"
+                          stroke={
+                            difficultyHovered || difficultyMenuOpen
+                              ? "rgba(255,255,255,1)"
+                              : "rgba(255,255,255,0.9)"
+                          }
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
                   </div>
-                </div>
+                </button>
+                {difficultyMenuOpen ? (
+                  <ul
+                    role="listbox"
+                    aria-label="Difficulty"
+                    className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-2xl py-1"
+                    style={difficultyDropdownPanelStyle}
+                  >
+                    {DIFFICULTY_OPTIONS.map(({ value: opt, label }) => {
+                      const selected = difficulty === opt;
+                      return (
+                        <li key={opt} role="presentation">
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            className={`game-focus-visible w-full border-0 text-center transition-colors hover:bg-white/[0.08] ${
+                              selected ? "bg-white/[0.12]" : "bg-transparent"
+                            }`}
+                            style={{
+                              ...difficultyOptionTypography,
+                              padding: "12px 16px",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => {
+                              setDifficulty(opt);
+                              setDifficultyMenuOpen(false);
+                              playClickSfx();
+                            }}
+                          >
+                            {label}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
               </div>
 
               <div
                 className="relative shrink-0 w-full flex items-center justify-center"
                 style={{
-                  marginTop: "0px",
+                  marginTop: "6px",
                   height: "28px",
                 }}
               >
-                <span style={controlsBottomLabelStyle}>4 images per round</span>
+                <span style={controlsBottomLabelStyle}>
+                  {IMAGES_PER_ROUND_LABEL[difficulty]}
+                </span>
               </div>
             </div>
               </div>
@@ -350,7 +506,7 @@ export function GameDescriptionScreen({
             }}
           >
             <span style={{ display: "block" }}>
-              A question will appear above a group of your memory images.Quickly
+              A question will appear above a group of your memory images. Quickly
               match each answer to its correct image.
             </span>
             <span style={{ display: "block" }}>
@@ -360,7 +516,7 @@ export function GameDescriptionScreen({
 
           {/* Bottom Buttons */}
           <div
-            className="w-full flex items-center justify-center mt-auto"
+            className="mt-auto flex w-full items-center justify-center"
             style={{ paddingBottom: "32px", paddingTop: "24px" }}
           >
             <div className="flex items-start justify-center gap-[24px]">
@@ -373,23 +529,19 @@ export function GameDescriptionScreen({
                   type="button"
                   onClick={() => handleQuickPlay()}
                   className="game-focus-visible"
+                  onMouseEnter={() => setQuickPlayHovered(true)}
+                  onMouseLeave={() => setQuickPlayHovered(false)}
                   style={{
                     width: "240px",
                     height: "68px",
-                    borderRadius: "32px",
-                    border: "2px solid rgba(255, 255, 255, 0.40)",
-                    background:
-                      "linear-gradient(232deg, rgba(255, 255, 255, 0.00) -43.91%, rgba(255, 255, 255, 0.15) 42.3%)",
-                    boxShadow:
-                      "0 42px 32.4px 0 rgba(0, 0, 0, 0.10), 0 -14px 14.2px 0 rgba(255, 255, 255, 0.10) inset",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    cursor: "pointer",
                     fontFamily: "var(--font-bitter), serif",
                     fontSize: "24px",
                     fontWeight: 700,
                     color: "#FFFFFF",
+                    ...getSecondaryInteractiveShellStyle(quickPlayHovered),
                   }}
                 >
                   Quick Play
@@ -418,9 +570,10 @@ export function GameDescriptionScreen({
                 <p
                   style={{
                     fontFamily: "var(--font-bitter), serif",
-                    fontWeight: 500,
+                    fontWeight: 700,
                     fontSize: "24px",
-                    color: "rgba(255, 255, 255, 0.80)",
+                    lineHeight: 1,
+                    color: "#FFFFFF",
                     margin: 0,
                     whiteSpace: "nowrap",
                   }}
@@ -445,12 +598,74 @@ export function GameDescriptionScreen({
           </div>
         </main>
       </div>
+
+      {introInfoOpen ? (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6"
+          style={{
+            background: "rgba(0, 0, 0, 0.52)",
+            backdropFilter: "blur(6px)",
+          }}
+          onClick={() => setIntroInfoOpen(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intro-tip-title"
+            className="flex w-full max-w-[min(92vw,440px)] max-h-[min(85dvh,620px)] flex-col overflow-y-auto rounded-[24px] p-6 sm:p-8"
+            style={difficultyDropdownPanelStyle}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: TIP + close en una sola fila */}
+            <header className="flex shrink-0 items-center justify-between gap-4">
+              <h2
+                id="intro-tip-title"
+                className="min-w-0 truncate"
+                style={{
+                  fontFamily: "var(--font-bitter), serif",
+                  fontWeight: 700,
+                  fontSize: "24px",
+                  lineHeight: 1,
+                  color: "#FFFFFF",
+                  margin: 0,
+                }}
+              >
+                TIP
+              </h2>
+              <div className="shrink-0">
+                <CloseButton onClick={() => setIntroInfoOpen(false)} />
+              </div>
+            </header>
+
+            {/* Body: texto alineado a la izquierda */}
+            <div className="mt-6 min-h-0 w-full space-y-3">
+              {INTRO_INFO_TIP_PARAGRAPHS.map((text, i) => (
+                <p
+                  key={`intro-info-${i}`}
+                  style={{
+                    fontFamily: "var(--font-bitter), serif",
+                    fontWeight: 500,
+                    fontSize: "18px",
+                    color: "rgba(255, 255, 255, 0.80)",
+                    lineHeight: 1.5,
+                    margin: 0,
+                    textAlign: "left",
+                  }}
+                >
+                  {text}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 
   if (embedded) return content;
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative h-[100dvh] max-h-[100dvh] overflow-hidden">
       <Background />
       {content}
     </div>
