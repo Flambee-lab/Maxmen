@@ -1098,9 +1098,28 @@ export function GameScreen({
     round,
     libraryDeck?.mappingsPerRound,
   ]);
+
+  /** Transición entre rondas: mostrar fotos del round que viene, no las del que acaba de terminar */
+  const upcomingRoundAfterTransition: InternalRound | null =
+    gamePhase === "transition" && round < maxRounds ? ((round + 1) as InternalRound) : null;
+
+  const cardsForNextRoundTransitionPreview = useMemo((): PhotoCard[] | null => {
+    if (!upcomingRoundAfterTransition) return null;
+    if (libraryDeck) {
+      return getLibraryCardsForRound(libraryDeck, upcomingRoundAfterTransition);
+    }
+    return getRoundData(upcomingRoundAfterTransition).cards;
+  }, [libraryDeck, upcomingRoundAfterTransition]);
+
   const cardsForDisplay = isTimeUpEndgame
     ? timeUpRemainingCards
-    : gameState.cards;
+    : cardsForNextRoundTransitionPreview ?? gameState.cards;
+
+  const isTransitionBetweenRounds = gamePhase === "transition" && round < maxRounds;
+  const introCardStageRound: InternalRound =
+    isTransitionBetweenRounds && upcomingRoundAfterTransition
+      ? upcomingRoundAfterTransition
+      : round;
 
   // Pantalla final por éxito (todas correctas): mismo layout que time's up; todas las cards con nombres correctos
   const isSuccessEndgame = !!(
@@ -1487,9 +1506,11 @@ export function GameScreen({
                     <CardStage
                       cards={cardsForDisplay}
                       highlightedCardId={isFinalScreen ? null : activeCardId}
-                      cardStatus={cardStatus}
-                      resolvedByCard={resolvedByCardForDisplay}
-                      cardFeedback={cardFeedback}
+                      cardStatus={isTransitionBetweenRounds ? {} : cardStatus}
+                      resolvedByCard={
+                        isTransitionBetweenRounds ? {} : resolvedByCardForDisplay
+                      }
+                      cardFeedback={isTransitionBetweenRounds ? {} : cardFeedback}
                       onCardHover={() => {}}
                       onCardDrop={handleCardDrop}
                       connectSlotRef={registerConnectSlot}
@@ -1497,13 +1518,21 @@ export function GameScreen({
                       showSlotArrow={!activeChipId}
                       activeOriginCardId={activeOriginCardId}
                       showConnectSlotWhenResolved={false}
-                      relationshipByCard={relationshipByCardForDisplay}
+                      relationshipByCard={
+                        isTransitionBetweenRounds ? {} : relationshipByCardForDisplay
+                      }
                       relationshipLabelPossessive={relationshipLabelPossessive}
-                      keepConnectorWhenRelationship={round === 3}
-                      resolvedConnectorExtraOffsetPx={round === 3 ? 22 : 0}
-                      birthDateByCard={birthDateByCardForDisplay}
-                      cardContentLinesByCard={cardContentLinesByCard}
-                      round={round}
+                      keepConnectorWhenRelationship={introCardStageRound === 3}
+                      resolvedConnectorExtraOffsetPx={
+                        introCardStageRound === 3 ? 22 : 0
+                      }
+                      birthDateByCard={
+                        isTransitionBetweenRounds ? {} : birthDateByCardForDisplay
+                      }
+                      cardContentLinesByCard={
+                        isTransitionBetweenRounds ? {} : cardContentLinesByCard
+                      }
+                      round={introCardStageRound}
                       photosOnly={
                         gamePhase === "preRoundIntro" || gamePhase === "transition"
                       }
