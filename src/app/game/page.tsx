@@ -536,6 +536,15 @@ export default function GamePage() {
               setPlaySessionId((id) => id + 1);
               setStage("play");
             }}
+            onReplay={() => {
+              setEndgameSnapshot(null);
+              setPlaySessionId((id) => id + 1);
+              setStage("play");
+            }}
+            onNewCategory={() => {
+              setEndgameSnapshot(null);
+              setStage("intro");
+            }}
           />
         )}
       </div>

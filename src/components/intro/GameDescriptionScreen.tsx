@@ -176,8 +176,8 @@ export function GameDescriptionScreen({
 
   const content = (
     <>
-      <div className="relative z-10 flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-col items-center overflow-hidden px-6 intro-screen-enter">
-        {/* Top Right Icons - Same position as TopHUD */}
+      <div className="relative z-10 h-[100dvh] max-h-[100dvh] min-h-0 w-full overflow-hidden px-6 intro-screen-enter">
+        {/* Fuera del grid: los hijos absolute dentro de un grid pueden robar la primera celda y romper el centrado */}
         <div
           className="absolute right-6 z-20"
           style={{
@@ -191,8 +191,10 @@ export function GameDescriptionScreen({
           <CloseButton onClick={handleClose} />
         </div>
 
-        {/* Mismo flujo y espaciados que el diseño original; solo viewport fijo (100dvh) para evitar scroll */}
-        <main className="flex min-h-0 w-full max-w-2xl flex-1 flex-col items-center overflow-hidden py-8">
+        <div className="grid h-full min-h-0 w-full grid-cols-1 grid-rows-[minmax(0,1fr)_auto]">
+        {/* Fila 1: ocupa el espacio restante; contenido centrado en vertical */}
+        <div className="flex min-h-0 w-full flex-col items-center justify-center overflow-y-auto py-8">
+          <div className="flex w-full max-w-2xl flex-col items-center">
           {/* Game Concept Illustration - centrada en viewport (SVG inline para poder interactuar con elementos) */}
           <div className="w-full flex items-center justify-center" style={{ width: "312px", height: "180px" }}>
             <IntroIllustrationSvg
@@ -513,10 +515,12 @@ export function GameDescriptionScreen({
               Try to get the fastest perfect score.
             </span>
           </p>
+          </div>
+        </div>
 
-          {/* Bottom Buttons */}
+          {/* Fila 2: botones */}
           <div
-            className="mt-auto flex w-full items-center justify-center"
+            className="flex w-full max-w-2xl justify-self-center items-center justify-center"
             style={{ paddingBottom: "32px", paddingTop: "24px" }}
           >
             <div className="flex items-start justify-center gap-[24px]">
@@ -596,7 +600,7 @@ export function GameDescriptionScreen({
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
 
       {introInfoOpen ? (

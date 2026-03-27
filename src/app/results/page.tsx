@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { ResultsScreen } from "@/components/results";
 
 /**
@@ -7,5 +8,11 @@ import { ResultsScreen } from "@/components/results";
  * Abre: http://localhost:3000/results
  */
 export default function ResultsPreviewPage() {
-  return <ResultsScreen />;
+  const router = useRouter();
+  return (
+    <ResultsScreen
+      onReplay={() => router.push("/game")}
+      onNewCategory={() => router.push("/game")}
+    />
+  );
 }

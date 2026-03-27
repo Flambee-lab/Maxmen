@@ -6,7 +6,9 @@
  * Sin snapshot: dashboard estático (gráficos + panel).
  */
 
+import { useRouter } from "next/navigation";
 import { Background } from "@/components/game/Background";
+import { GamePrimaryButton } from "@/components/game/GamePrimaryButton";
 import { ScoreTrendChart } from "@/components/game/ScoreTrendChart";
 import { GameResultsRecap } from "./GameResultsRecap";
 import type { GameEndgameSnapshot } from "@/types/gameEndgameSnapshot";
@@ -26,6 +28,10 @@ export interface ResultsScreenProps {
   onRecapPrimaryContinue?: () => void;
   /** Restart en menú de pausa del recap → nueva partida ronda 1 */
   onRecapRestart?: () => void;
+  /** Dashboard de resultados: nueva partida desde ronda 1 (misma sesión que onRecapRestart en /game) */
+  onReplay?: () => void;
+  /** Dashboard: volver a elegir categoría / intro */
+  onNewCategory?: () => void;
   onContinue?: () => void;
 }
 
@@ -42,7 +48,23 @@ function ResultsFilterChip({ label, active }: { label: string; active?: boolean 
   );
 }
 
-function SummaryPanel() {
+function SummaryPanel({
+  onReplay,
+  onNewCategory,
+}: {
+  onReplay?: () => void;
+  onNewCategory?: () => void;
+}) {
+  const router = useRouter();
+
+  const handleNewCategory = () => {
+    if (onNewCategory) {
+      onNewCategory();
+      return;
+    }
+    router.push("/game");
+  };
+
   return (
     <aside className="results-screen-summary-shell results-screen-summary-shell--docked relative flex min-h-0 w-full shrink-0 flex-col overflow-hidden px-0 pb-0 pt-5 md:pt-6 lg:h-full lg:w-[400px]">
       {/* Pinstripe glass */}
@@ -202,18 +224,41 @@ function SummaryPanel() {
         </div>
       </div>
 
-      <div
-        className="relative z-20 w-full shrink-0 overflow-hidden leading-[0]"
-        style={{ aspectRatio: "400 / 104" }}
-      >
-        <img
-          src="/buttons.svg"
-          alt=""
-          width={400}
-          height={114}
-          className="pointer-events-auto absolute left-0 top-0 block h-auto w-full max-w-none"
-          draggable={false}
-        />
+      <div className="relative z-20 w-full shrink-0 border-t border-white/[0.08] bg-black/20 px-3 py-4 backdrop-blur-[2px]">
+        <div className="mx-auto flex w-full min-w-0 flex-nowrap items-center justify-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            className="game-focus-visible shrink-0 rounded-[32px] border-2 border-white/40 px-3 py-2.5 text-center font-bitter text-[16px] font-semibold text-white transition-colors hover:border-white/55 hover:bg-white/[0.08] sm:px-4 sm:text-[18px]"
+            style={{
+              minWidth: "118px",
+              background:
+                "linear-gradient(232deg, rgba(255, 255, 255, 0.00) -43.91%, rgba(255, 255, 255, 0.12) 42.3%)",
+              boxShadow:
+                "0 0 12px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+            }}
+            onClick={handleNewCategory}
+          >
+            New Category
+          </button>
+          <span className="shrink-0 px-0.5 font-bitter text-[16px] font-bold leading-none text-white sm:text-[18px]">
+            or
+          </span>
+          <GamePrimaryButton
+            disabled={!onReplay}
+            onClick={() => onReplay?.()}
+            className="shrink-0"
+            style={{
+              width: "auto",
+              minWidth: "118px",
+              height: "52px",
+              fontSize: "16px",
+              paddingLeft: "12px",
+              paddingRight: "12px",
+            }}
+          >
+            Replay
+          </GamePrimaryButton>
+        </div>
       </div>
     </aside>
   );
@@ -226,6 +271,8 @@ export function ResultsScreen({
   onRecapClose,
   onRecapPrimaryContinue,
   onRecapRestart,
+  onReplay,
+  onNewCategory,
 }: ResultsScreenProps) {
   if (gameSnapshot) {
     return (
@@ -270,7 +317,7 @@ export function ResultsScreen({
             <ScoreTrendChart title="Time trend chart" />
           </div>
         </main>
-        <SummaryPanel />
+        <SummaryPanel onReplay={onReplay} onNewCategory={onNewCategory} />
       </div>
     </div>
   );
